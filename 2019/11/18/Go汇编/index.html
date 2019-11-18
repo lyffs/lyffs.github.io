@@ -79,14 +79,14 @@
 
 
 
-<meta name="description" content="Welcome to lyf Post!">
+<meta name="description" content="Golang汇编学习前沿本文是我学习Go汇编的一点心得 详情Go几个虚拟寄存器-&amp;gt; 栈调整    栈的调整是通过对硬件SP寄存器进行运行来实现。 -&amp;gt; 数据搬运    场数在plan9汇编用$num表示，可以为负数，默认情况下为十进制。搬运的长度是有MOV后缀决定的。    MOVB $1,DI &#x2F;&#x2F; 1 byte    MOVW $0x10, BX &#x2F;&#x2F; 2bytes    MOVD">
 <meta property="og:type" content="article">
-<meta property="og:title" content="Hello World">
-<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;11&#x2F;17&#x2F;hello-world&#x2F;index.html">
+<meta property="og:title" content="Go汇编">
+<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;11&#x2F;18&#x2F;Go%E6%B1%87%E7%BC%96&#x2F;index.html">
 <meta property="og:site_name" content="Hexo">
-<meta property="og:description" content="Welcome to lyf Post!">
+<meta property="og:description" content="Golang汇编学习前沿本文是我学习Go汇编的一点心得 详情Go几个虚拟寄存器-&amp;gt; 栈调整    栈的调整是通过对硬件SP寄存器进行运行来实现。 -&amp;gt; 数据搬运    场数在plan9汇编用$num表示，可以为负数，默认情况下为十进制。搬运的长度是有MOV后缀决定的。    MOVB $1,DI &#x2F;&#x2F; 1 byte    MOVW $0x10, BX &#x2F;&#x2F; 2bytes    MOVD">
 <meta property="og:locale" content="en">
-<meta property="og:updated_time" content="2019-11-17T03:38:43.483Z">
+<meta property="og:updated_time" content="2019-11-18T14:07:47.527Z">
 <meta name="twitter:card" content="summary">
 
 
@@ -117,13 +117,13 @@
 
 
 
-  <link rel="canonical" href="http://yoursite.com/2019/11/17/hello-world/"/>
+  <link rel="canonical" href="http://yoursite.com/2019/11/18/Go汇编/"/>
 
 
 
 
 
-  <title>Hello World | Hexo</title>
+  <title>Go汇编 | Hexo</title>
   
 
 
@@ -230,7 +230,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/11/17/hello-world/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/11/18/Go%E6%B1%87%E7%BC%96/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="John Doe">
@@ -247,7 +247,7 @@
 
         
         
-          <h1 class="post-title" itemprop="name headline">Hello World</h1>
+          <h1 class="post-title" itemprop="name headline">Go汇编</h1>
         
 
         <div class="post-meta">
@@ -259,8 +259,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-11-17T11:38:43+08:00">
-                2019-11-17
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-11-18T22:07:47+08:00">
+                2019-11-18
               </time>
             
 
@@ -297,7 +297,14 @@
       
 
       
-        <p>Welcome to lyf Post! </p>
+        <h3 id="Golang汇编学习"><a href="#Golang汇编学习" class="headerlink" title="Golang汇编学习"></a>Golang汇编学习</h3><h2 id="前沿"><a href="#前沿" class="headerlink" title="前沿"></a>前沿</h2><p>本文是我学习Go汇编的一点心得</p>
+<h2 id="详情"><a href="#详情" class="headerlink" title="详情"></a>详情</h2><h1 id="Go几个虚拟寄存器"><a href="#Go几个虚拟寄存器" class="headerlink" title="Go几个虚拟寄存器"></a>Go几个虚拟寄存器</h1><p>-&gt; 栈调整<br>    栈的调整是通过对硬件SP寄存器进行运行来实现。</p>
+<p>-&gt; 数据搬运<br>    场数在plan9汇编用$num表示，可以为负数，默认情况下为十进制。搬运的长度是有MOV后缀决定的。<br>    MOVB $1,DI // 1 byte<br>    MOVW $0x10, BX // 2bytes<br>    MOVD $1, DX // 4bytes<br>    MOVQ $-10, AX // 8bytes</p>
+<p>-&gt; 条件跳转<br>    JMP addr //跳转到地址，地址可为代码中地址<br>    JMP label //跳转到标签，可以跳转到同一函数内的标签位置<br>    JMP 2(PC) //以当前指令为基础，向前/向后跳转X行<br>    JMP -2(PC) //同上<br>    JNZ target //如果zero flag被set过，则跳转</p>
+<p>-&gt; 指令集<br>    参考源代码arch 部分：<a href="https://github.com/golang/arch/blob/master/x86/x86.csv" target="_blank" rel="noopener">https://github.com/golang/arch/blob/master/x86/x86.csv</a></p>
+<p>-&gt; 通用寄存器<br>    rax -&gt; AX<br>    rbx -&gt; BX<br>    rcx -&gt; CX<br>    rdx -&gt; DX<br>    rdi -&gt; DI<br>    rsi -&gt; SI<br>    r8 ~ r15 -&gt; R8 ~ R15<br>    RBP -&gt; bp<br>    RSP -&gt; sp</p>
+<pre><code>bp和sp用来管理栈顶和栈底，最好不要拿来运算。plan9中使用寄存器不需要带r或者e的前缀，例如rax，只要写成AX即可。</code></pre><p>-&gt; 伪寄存器<br>    GO汇编引入4个伪寄存器。<br>    FP: Frame poniter: arguments and locals<br>    PC: Program counter: jumps and branches<br>    SB: Static base pointer: global symbols<br>    SP: Stack pointer: top of stack</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><p>-&gt; -&gt; 参考资料：<a href="https://xargin.com/plan9-assembly/" target="_blank" rel="noopener">https://xargin.com/plan9-assembly/</a></p>
 
       
     </div>
@@ -322,15 +329,15 @@
         <div class="post-nav">
           <div class="post-nav-next post-nav-item">
             
+              <a href="/2019/11/17/hello-world/" rel="next" title="Hello World">
+                <i class="fa fa-chevron-left"></i> Hello World
+              </a>
+            
           </div>
 
           <span class="post-nav-divider"></span>
 
           <div class="post-nav-prev post-nav-item">
-            
-              <a href="/2019/11/18/Go%E6%B1%87%E7%BC%96/" rel="prev" title="Go汇编">
-                Go汇编 <i class="fa fa-chevron-right"></i>
-              </a>
             
           </div>
         </div>
@@ -382,8 +389,17 @@
       
 
       
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
 
-      <section class="site-overview-wrap sidebar-panel sidebar-panel-active">
+      <section class="site-overview-wrap sidebar-panel">
         <div class="site-overview">
           <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
             
@@ -425,6 +441,22 @@
         </div>
       </section>
 
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#Golang汇编学习"><span class="nav-number">1.</span> <span class="nav-text">Golang汇编学习</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#前沿"><span class="nav-number"></span> <span class="nav-text">前沿</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#详情"><span class="nav-number"></span> <span class="nav-text">详情</span></a></li></ol></li><li class="nav-item nav-level-1"><a class="nav-link" href="#Go几个虚拟寄存器"><span class="nav-number"></span> <span class="nav-text">Go几个虚拟寄存器</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#参考资料"><span class="nav-number"></span> <span class="nav-text">参考资料</span></a></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
       
 
       

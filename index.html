@@ -228,6 +228,133 @@
   
   
   <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/11/18/Go%E6%B1%87%E7%BC%96/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="John Doe">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2019/11/18/Go%E6%B1%87%E7%BC%96/" itemprop="url">Go汇编</a></h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-11-18T22:07:47+08:00">
+                2019-11-18
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+            <h3 id="Golang汇编学习"><a href="#Golang汇编学习" class="headerlink" title="Golang汇编学习"></a>Golang汇编学习</h3><h2 id="前沿"><a href="#前沿" class="headerlink" title="前沿"></a>前沿</h2><p>本文是我学习Go汇编的一点心得</p>
+<h2 id="详情"><a href="#详情" class="headerlink" title="详情"></a>详情</h2><h1 id="Go几个虚拟寄存器"><a href="#Go几个虚拟寄存器" class="headerlink" title="Go几个虚拟寄存器"></a>Go几个虚拟寄存器</h1><p>-&gt; 栈调整<br>    栈的调整是通过对硬件SP寄存器进行运行来实现。</p>
+<p>-&gt; 数据搬运<br>    场数在plan9汇编用$num表示，可以为负数，默认情况下为十进制。搬运的长度是有MOV后缀决定的。<br>    MOVB $1,DI // 1 byte<br>    MOVW $0x10, BX // 2bytes<br>    MOVD $1, DX // 4bytes<br>    MOVQ $-10, AX // 8bytes</p>
+<p>-&gt; 条件跳转<br>    JMP addr //跳转到地址，地址可为代码中地址<br>    JMP label //跳转到标签，可以跳转到同一函数内的标签位置<br>    JMP 2(PC) //以当前指令为基础，向前/向后跳转X行<br>    JMP -2(PC) //同上<br>    JNZ target //如果zero flag被set过，则跳转</p>
+<p>-&gt; 指令集<br>    参考源代码arch 部分：<a href="https://github.com/golang/arch/blob/master/x86/x86.csv" target="_blank" rel="noopener">https://github.com/golang/arch/blob/master/x86/x86.csv</a></p>
+<p>-&gt; 通用寄存器<br>    rax -&gt; AX<br>    rbx -&gt; BX<br>    rcx -&gt; CX<br>    rdx -&gt; DX<br>    rdi -&gt; DI<br>    rsi -&gt; SI<br>    r8 ~ r15 -&gt; R8 ~ R15<br>    RBP -&gt; bp<br>    RSP -&gt; sp</p>
+<pre><code>bp和sp用来管理栈顶和栈底，最好不要拿来运算。plan9中使用寄存器不需要带r或者e的前缀，例如rax，只要写成AX即可。</code></pre><p>-&gt; 伪寄存器<br>    GO汇编引入4个伪寄存器。<br>    FP: Frame poniter: arguments and locals<br>    PC: Program counter: jumps and branches<br>    SB: Static base pointer: global symbols<br>    SP: Stack pointer: top of stack</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><p>-&gt; -&gt; 参考资料：<a href="https://xargin.com/plan9-assembly/" target="_blank" rel="noopener">https://xargin.com/plan9-assembly/</a></p>
+
+          
+        
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
     <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/11/17/hello-world/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -381,7 +508,7 @@
               
                 <a href="/archives/%20%7C%7C%20archive">
               
-                  <span class="site-state-item-count">1</span>
+                  <span class="site-state-item-count">2</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>
