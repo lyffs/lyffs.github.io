@@ -228,7 +228,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/11/23/Go%E6%B1%87%E7%BC%96/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/11/25/Go%E6%B1%87%E7%BC%96/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="John Doe">
@@ -247,7 +247,7 @@
         
           <h1 class="post-title" itemprop="name headline">
                 
-                <a class="post-title-link" href="/2019/11/23/Go%E6%B1%87%E7%BC%96/" itemprop="url">Go汇编</a></h1>
+                <a class="post-title-link" href="/2019/11/25/Go%E6%B1%87%E7%BC%96/" itemprop="url">Go汇编</a></h1>
         
 
         <div class="post-meta">
@@ -259,8 +259,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-11-23T00:00:16+08:00">
-                2019-11-23
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-11-25T22:35:31+08:00">
+                2019-11-25
               </time>
             
 
@@ -307,11 +307,13 @@ ADDQ $0x18, SP //对SP做加法，清除函数栈帧</code></pre><h4 id="数据�
 MOVB $1,DI // 1 byte
 MOVW $0x10, BX // 2bytes
 MOVD $1, DX // 4bytes
-MOVQ $-10, AX // 8bytes</code></pre><h4 id="条件跳转"><a href="#条件跳转" class="headerlink" title="条件跳转"></a>条件跳转</h4><pre><code>JMP addr //跳转到地址，地址可为代码中地址
+MOVQ $-10, AX // 8bytes</code></pre><h4 id="条件跳转"><a href="#条件跳转" class="headerlink" title="条件跳转"></a>条件跳转</h4><h5 id="section跳转"><a href="#section跳转" class="headerlink" title="section跳转"></a>section跳转</h5><pre><code>JMP addr //跳转到地址，地址可为代码中地址
 JMP label //跳转到标签，可以跳转到同一函数内的标签位置
 JMP 2(PC) //以当前指令为基础，向前/向后跳转X行
 JMP -2(PC) //同上
-JNZ target //如果zero flag被set过，则跳转</code></pre><h4 id="指令集"><a href="#指令集" class="headerlink" title="指令集"></a>指令集</h4><pre><code>参考源代码arch 部分：https://github.com/golang/arch/blob/master/x86/x86.csv</code></pre><h4 id="通用寄存器"><a href="#通用寄存器" class="headerlink" title="通用寄存器"></a>通用寄存器</h4><pre><code>rax -&gt; AX
+JNZ target //如果zero flag被set过，则跳转</code></pre><h5 id="函数调用跳转"><a href="#函数调用跳转" class="headerlink" title="函数调用跳转"></a>函数调用跳转</h5><pre><code>JMQ SP/BP 不会发生变化，栈空间不会发生变化。
+CALL 栈空间会发生响应的变化，传递参数时，我们需要输入参数，返回值按之前将栈的布局安排在调用者的栈顶，然后在调用CALL函数来调用其函数，
+调用CALL命令后，SP寄存器会下移一个WORD，然后进入新函数的栈空间执行。</code></pre><h4 id="指令集"><a href="#指令集" class="headerlink" title="指令集"></a>指令集</h4><pre><code>参考源代码arch 部分：https://github.com/golang/arch/blob/master/x86/x86.csv</code></pre><h4 id="通用寄存器"><a href="#通用寄存器" class="headerlink" title="通用寄存器"></a>通用寄存器</h4><pre><code>rax -&gt; AX
 rbx -&gt; BX
 rcx -&gt; CX
 rdx -&gt; DX
@@ -347,7 +349,9 @@ GLOBL bio&lt;&gt;(SB), RODATA, $16</code></pre><h4 id="函数声明"><a href="#�
 
 TEXT package·add(SB),NOSPLIT,$32-32
          |     |                | |
-         包名  函数名           栈帧大小 参数及返回值大小</code></pre><h4 id="栈结构"><a href="#栈结构" class="headerlink" title="栈结构"></a>栈结构</h4><pre><code>    ---------------------------------
+         包名  函数名           栈帧大小 参数及返回值大小
+
+ 当有NOSPLIT表示时，可以不写输入参数，返回值占用的大小（这时会强行插入CALLER BP）        </code></pre><h4 id="栈结构"><a href="#栈结构" class="headerlink" title="栈结构"></a>栈结构</h4><pre><code>    ---------------------------------
     current func arg0
     --------------------------------- &lt;-------FP (pseudo FP)
     caller ret addr
@@ -412,10 +416,23 @@ TEXT .add(SB), NOSPLIT, $0-24
     RET
 `
 
-把两个文件放在任意目录下，执行go build并运行就可以看到效果</code></pre><h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><pre><code>参考资料：https://xargin.com/plan9-assembly/
+把两个文件放在任意目录下，执行go build并运行就可以看到效果</code></pre><h5 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h5><h6 id="数据类型"><a href="#数据类型" class="headerlink" title="数据类型"></a>数据类型</h6><pre><code>标准库的数值类型：
+1.int/int8/int16/int32/int64
+2.uint/uint8/uint16/uint32/uint64
+3.float32/float64
+4.byte/rune
+5.uintpr
+
+这些类型在汇编中就是一段储存着数据的连续内存，只是内存长度不一样，操作的时候看好数据长度就行。
+
+1.struct
+struct在汇编层面实际上就是一段连续内存，在作为参数传给函数时，会将其展开在caller的栈上传给对应的callee:</code></pre><h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><pre><code>https://xargin.com/plan9-assembly/
 https://www.cnblogs.com/landv/p/11589074.html
 https://quasilyte.dev/blog/post/go-asm-complementary-reference/#external-resources
-https://www.cnblogs.com/landv/p/11589074.html</code></pre>
+https://www.cnblogs.com/landv/p/11589074.html
+http://blog.studygolang.com/2013/05/asm_and_plan9_asm/
+https://zhuanlan.zhihu.com/p/56750445?utm_campaign=studygolang.com&amp;utm_medium=studygolang.com&amp;utm_source=studygolang.com
+https://lrita.github.io/2017/12/12/golang-asm/#why</code></pre>
           
         
       
