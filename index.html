@@ -228,7 +228,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/11/25/Go%E6%B1%87%E7%BC%96/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/11/26/Go%E6%B1%87%E7%BC%96/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="John Doe">
@@ -247,7 +247,7 @@
         
           <h1 class="post-title" itemprop="name headline">
                 
-                <a class="post-title-link" href="/2019/11/25/Go%E6%B1%87%E7%BC%96/" itemprop="url">Go汇编</a></h1>
+                <a class="post-title-link" href="/2019/11/26/Go%E6%B1%87%E7%BC%96/" itemprop="url">Go汇编</a></h1>
         
 
         <div class="post-meta">
@@ -259,8 +259,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-11-25T22:35:31+08:00">
-                2019-11-25
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-11-26T22:15:47+08:00">
+                2019-11-26
               </time>
             
 
@@ -345,7 +345,11 @@ GLOBL divtab(SB), RODATA, $64
 定义数据，或字符串，这是需要用到非0的offset，例如：
 DATA bio&lt;&gt;+0(SB)/8, $&quot;oh yes i&quot;
 DATA bio&lt;&gt;+8(SB)/8, $&quot;am here&quot;
-GLOBL bio&lt;&gt;(SB), RODATA, $16</code></pre><h4 id="函数声明"><a href="#函数声明" class="headerlink" title="函数声明"></a>函数声明</h4><pre><code>在plan9中TEXT是一个指令，用来定义一个函数。    
+GLOBL bio&lt;&gt;(SB), RODATA, $16
+
+go编译器为了方便汇编访问struct的指定字段，会在编译过程中自动生成一个go_asm.h文件，可以通过#include &quot;go_asm.h&quot; 语言来引用，该文件中会生成该包内全部struct的每个字段的偏移量宏定义与结构体大小到的宏定义。
+
+我们可以通过命令go tool compile -S -asmhdr dump.h *.go来导出相关文件编译过程中会生成的宏定义</code></pre><h4 id="函数声明"><a href="#函数声明" class="headerlink" title="函数声明"></a>函数声明</h4><pre><code>在plan9中TEXT是一个指令，用来定义一个函数。    
 
 TEXT package·add(SB),NOSPLIT,$32-32
          |     |                | |
@@ -426,7 +430,7 @@ TEXT .add(SB), NOSPLIT, $0-24
 这些类型在汇编中就是一段储存着数据的连续内存，只是内存长度不一样，操作的时候看好数据长度就行。
 
 1.struct
-struct在汇编层面实际上就是一段连续内存，在作为参数传给函数时，会将其展开在caller的栈上传给对应的callee:</code></pre><h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><pre><code>https://xargin.com/plan9-assembly/
+struct在汇编层面实际上就是一段连续内存，在作为参数传给函数时，会将其展开在caller的栈上传给对应的callee:</code></pre><h5 id="命令"><a href="#命令" class="headerlink" title="命令"></a>命令</h5><h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><pre><code>https://xargin.com/plan9-assembly/
 https://www.cnblogs.com/landv/p/11589074.html
 https://quasilyte.dev/blog/post/go-asm-complementary-reference/#external-resources
 https://www.cnblogs.com/landv/p/11589074.html
