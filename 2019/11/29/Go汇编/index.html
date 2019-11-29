@@ -82,11 +82,11 @@
 <meta name="description" content="Golang汇编学习前沿本文是我学习Go汇编的一点心得 详情场景1.）算法加速，golang编译器生成的机器码基本上都是通用代码，优化程度一般，我们需要用到特殊优化逻辑、特殊的CPU指令让我们的算法运行速度更快。https:&#x2F;&#x2F;github.com&#x2F;minio&#x2F;sha256-simd 2.）摆脱golang编译器一些约束，如通过汇编调用其他package的私有函数。https:&#x2F;&#x2F;sitano.g">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Go汇编">
-<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;11&#x2F;27&#x2F;Go%E6%B1%87%E7%BC%96&#x2F;index.html">
+<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;11&#x2F;29&#x2F;Go%E6%B1%87%E7%BC%96&#x2F;index.html">
 <meta property="og:site_name" content="Hexo">
 <meta property="og:description" content="Golang汇编学习前沿本文是我学习Go汇编的一点心得 详情场景1.）算法加速，golang编译器生成的机器码基本上都是通用代码，优化程度一般，我们需要用到特殊优化逻辑、特殊的CPU指令让我们的算法运行速度更快。https:&#x2F;&#x2F;github.com&#x2F;minio&#x2F;sha256-simd 2.）摆脱golang编译器一些约束，如通过汇编调用其他package的私有函数。https:&#x2F;&#x2F;sitano.g">
 <meta property="og:locale" content="en">
-<meta property="og:updated_time" content="2019-11-27T14:03:20.368Z">
+<meta property="og:updated_time" content="2019-11-29T15:52:52.873Z">
 <meta name="twitter:card" content="summary">
 
 
@@ -117,7 +117,7 @@
 
 
 
-  <link rel="canonical" href="http://yoursite.com/2019/11/27/Go汇编/"/>
+  <link rel="canonical" href="http://yoursite.com/2019/11/29/Go汇编/"/>
 
 
 
@@ -230,7 +230,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/11/27/Go%E6%B1%87%E7%BC%96/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/11/29/Go%E6%B1%87%E7%BC%96/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="John Doe">
@@ -259,8 +259,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-11-27T22:03:20+08:00">
-                2019-11-27
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-11-29T23:52:52+08:00">
+                2019-11-29
               </time>
             
 
@@ -335,7 +335,8 @@ PC: 就是体系结构中的PC寄存器
 SB: 全局静态基指针，一般用来声明函数或者全局变量。
 SP: 指向当前栈帧的局部变量的开始位置。使用形如symbol+offset(SP)方式，引用函数局部变量。offset的取值范围：[-framesize,0)
 
-go tool objdump/go tool compile -S 输出的代码是没有伪SP和FP寄存器的。在汇编结果中，只有真实的SP寄存器。</code></pre><h4 id="变量声明"><a href="#变量声明" class="headerlink" title="变量声明"></a>变量声明</h4><pre><code>在汇编所谓的变量，一般是存储在 .rodata或者 .data段中的只读值。对应到应用层的话，就是已初始化的全局的const，var，statics常量/变量。
+go tool objdump/go tool compile -S 输出的代码是没有伪SP和FP寄存器的。在汇编结果中，只有真实的SP寄存器。
+其实伪寄存器FP和SP相当于plan9伪汇编中的一个助记符，他们是根据当前函数栈空间计算出来的一个相对于物理寄存器SP的一个偏移量坐标。当在一个函数中，如果用户手动修改了物理寄存器SP的偏移，则伪寄存器FP和SP也随之发生对应的偏移。</code></pre><h4 id="变量声明"><a href="#变量声明" class="headerlink" title="变量声明"></a>变量声明</h4><pre><code>在汇编所谓的变量，一般是存储在 .rodata或者 .data段中的只读值。对应到应用层的话，就是已初始化的全局的const，var，statics常量/变量。
 使用DATA结合GLOBL来定义一个变量。DATA用法如下：
 DATA symbol+offset(SB)/width, value
 
@@ -356,7 +357,23 @@ TEXT package·add(SB),NOSPLIT,$32-32
          |     |                | |
          包名  函数名           栈帧大小 参数及返回值大小
 
- 当有NOSPLIT表示时，可以不写输入参数，返回值占用的大小（这时会强行插入CALLER BP）        </code></pre><h4 id="栈结构"><a href="#栈结构" class="headerlink" title="栈结构"></a>栈结构</h4><pre><code>    ---------------------------------
+ 当有NOSPLIT表示时，可以不写输入参数，返回值占用的大小（这时会强行插入CALLER BP）</code></pre><h5 id="调用其他函数"><a href="#调用其他函数" class="headerlink" title="调用其他函数"></a>调用其他函数</h5><pre><code>在汇编中调用其他函数通常是：
+JMP： 直接跳转时，与函数栈空间相关的几个寄存器SP/FP不会发生变化，可以理解为被调用者复用调用者的栈空间。此时，参数传递采用寄存器传递，调用者和
+    被调用者协商好使用那些寄存器传递参数，调用者将参数写入这些寄存器，然后跳转到被调用者，被调用者从相关寄存器读出相关参数。
+
+CALL: 通过CALL命令来调用其他函数时，占空间会发生响应变化（寄存器SP/FP随之发生变化）。传递参数时，我们需要输入参数、返回值按之前将的栈布局安排在调用者的栈顶
+（低地址），然后在调用CALL命令来调用其他函数，调用CALL命令后，SP寄存区会下移一个WORD，然后进入新函数的栈空间运行。return addr（函数返回地址）不需要用户维护，CALL
+指令会自动维护。</code></pre><h5 id="回调函数-闭包"><a href="#回调函数-闭包" class="headerlink" title="回调函数/闭包"></a>回调函数/闭包</h5><pre><code>当函数参数中包含回调函数时，回调函数的指针通过一种简介方式传入，之所以采用这种设计也是为例照顾闭包调用的实现。在Golang的ABI中，关于回调函数、闭包的
+上下文由调用者来维护，被调用者按照规定的格式来使用。    
+
+1.调用者需要申请一段临时内存区域来存储函数指针，当传递参数是闭包时，该临时内存区域开可以进行扩充，用于存储闭包中捕获的变量，通常编译器将该内存区域定义成结构体：
+struct { f uintptr; a *int}的结构。该临时内存区域可以分配在栈上，也可以分配在堆上，也可以分配到寄存器上，到底分配到那里，需要编译器根据逃逸分析的结果来决定。
+2.将临时内存区域的地址存储于对应 被调用函数 入参的对应位置上；其他参数按照上面常规方法放置。
+3.使用CALL执行调用 被调用函数（callee-call）
+4.在被调用函数（callee-call） 中从对应参数位置中去除临时内存区域的指针存储在指定寄存器DX(仅限于AMD64平台)
+5.然后从DX指向的临时内存区域的首部取出函数指针，存储于AX
+6.然后在执行CALL AX指令来调用传入的回调函数。
+7.当回调函数是闭包时，需要使用捕获的变量时，直接通过寄存器DX加对应偏移量来获取。                 </code></pre><h4 id="栈结构"><a href="#栈结构" class="headerlink" title="栈结构"></a>栈结构</h4><pre><code>    ---------------------------------
     current func arg0
     --------------------------------- &lt;-------FP (pseudo FP)
     caller ret addr
@@ -398,7 +415,11 @@ argsize:caller（存储）
 framesize:callee（存储）
 `$16-32表示 $framesize-argsize。Go在函数调用时，参数和返回值都需要由caller再起栈帧上备好空间`。argsize计算方法是：参数大小求和+返回值大小求和。如入参是3个int64类型，返回值是1个int64类型，那么这里的argsize=sizeof(int64) * 4。
 return address(rip)的值也是存储在caller的stack frame上的，但是这个过程是由CALL指令和RET指令完成PC寄存器的保存和恢复。    </code></pre><h5 id="地址运算"><a href="#地址运算" class="headerlink" title="地址运算"></a>地址运算</h5><pre><code>地址运算也是用LEA 指令，英文愿意为 Load Effective Addresss，amd64平台地址都是8个字节，所有直接就用LEAQ就好。
-例子： LEAQ (BX)(AX*1), CX</code></pre><h5 id="示例"><a href="#示例" class="headerlink" title="示例"></a>示例</h5><pre><code>math.go
+例子： LEAQ (BX)(AX*1), CX
+
+MOVQ命令，在寄存器加偏移的情况下MOVQ会对地址进行解引用。
+MOVQ (AX), BX   // =&gt; BX = *AX 将AX指向的内存区域8byte赋值给BX
+MOVQ AX, BX     // =&gt; BX = AX 将AX中存储的内容赋值给BX，注意区别</code></pre><h5 id="示例"><a href="#示例" class="headerlink" title="示例"></a>示例</h5><pre><code>math.go
 `
 package main
 import &quot;fmt&quot;
@@ -421,7 +442,7 @@ TEXT .add(SB), NOSPLIT, $0-24
     RET
 `
 
-把两个文件放在任意目录下，执行go build并运行就可以看到效果</code></pre><h5 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h5><h6 id="数据类型"><a href="#数据类型" class="headerlink" title="数据类型"></a>数据类型</h6><pre><code>标准库的数值类型：
+把两个文件放在任意目录下，执行go build并运行就可以看到效果</code></pre><h5 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h5><h5 id=""><a href="#" class="headerlink" title=""></a></h5><h6 id="数据类型"><a href="#数据类型" class="headerlink" title="数据类型"></a>数据类型</h6><pre><code>标准库的数值类型：
 1.int/int8/int16/int32/int64
 2.uint/uint8/uint16/uint32/uint64
 3.float32/float64
@@ -431,7 +452,9 @@ TEXT .add(SB), NOSPLIT, $0-24
 这些类型在汇编中就是一段储存着数据的连续内存，只是内存长度不一样，操作的时候看好数据长度就行。
 
 1.struct
-struct在汇编层面实际上就是一段连续内存，在作为参数传给函数时，会将其展开在caller的栈上传给对应的callee:</code></pre><h5 id="命令"><a href="#命令" class="headerlink" title="命令"></a>命令</h5><h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><pre><code>https://github.com/yangyuqian/technical-articles/blob/master/asm/golang-plan9-assembly-cn.md
+struct在汇编层面实际上就是一段连续内存，在作为参数传给函数时，会将其展开在caller的栈上传给对应的callee:</code></pre><h5 id="命令"><a href="#命令" class="headerlink" title="命令"></a>命令</h5><pre><code>汇编命令：go tool compile -l -N -S
+反汇编命令：go tool objdump -S</code></pre><h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><pre><code>https://www.altoros.com/blog/golang-internals-part-1-main-concepts-and-project-structure/
+https://github.com/yangyuqian/technical-articles/blob/master/asm/golang-plan9-assembly-cn.md
 https://xargin.com/plan9-assembly/
 https://www.cnblogs.com/landv/p/11589074.html
 https://quasilyte.dev/blog/post/go-asm-complementary-reference/#external-resources
@@ -571,7 +594,7 @@ https://syslog.ravelin.com/anatomy-of-a-function-call-in-go-f6fc81b80ecc</code><
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Golang汇编学习"><span class="nav-number">1.</span> <span class="nav-text">Golang汇编学习</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#前沿"><span class="nav-number">1.1.</span> <span class="nav-text">前沿</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#详情"><span class="nav-number">1.2.</span> <span class="nav-text">详情</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#场景"><span class="nav-number">1.2.1.</span> <span class="nav-text">场景</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Go几个虚拟寄存器"><span class="nav-number">1.2.1.1.</span> <span class="nav-text">Go几个虚拟寄存器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#栈调整"><span class="nav-number">1.2.1.2.</span> <span class="nav-text">栈调整</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#数据搬运"><span class="nav-number">1.2.1.3.</span> <span class="nav-text">数据搬运</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#条件跳转"><span class="nav-number">1.2.1.4.</span> <span class="nav-text">条件跳转</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#section跳转"><span class="nav-number">1.2.1.4.1.</span> <span class="nav-text">section跳转</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#函数调用跳转"><span class="nav-number">1.2.1.4.2.</span> <span class="nav-text">函数调用跳转</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#指令集"><span class="nav-number">1.2.1.5.</span> <span class="nav-text">指令集</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#通用寄存器"><span class="nav-number">1.2.1.6.</span> <span class="nav-text">通用寄存器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#伪寄存器"><span class="nav-number">1.2.1.7.</span> <span class="nav-text">伪寄存器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#变量声明"><span class="nav-number">1.2.1.8.</span> <span class="nav-text">变量声明</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#函数声明"><span class="nav-number">1.2.1.9.</span> <span class="nav-text">函数声明</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#栈结构"><span class="nav-number">1.2.1.10.</span> <span class="nav-text">栈结构</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#argsize和framesize计算规则"><span class="nav-number">1.2.1.10.1.</span> <span class="nav-text">argsize和framesize计算规则</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#地址运算"><span class="nav-number">1.2.1.10.2.</span> <span class="nav-text">地址运算</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#示例"><span class="nav-number">1.2.1.10.3.</span> <span class="nav-text">示例</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#数据结构"><span class="nav-number">1.2.1.10.4.</span> <span class="nav-text">数据结构</span></a><ol class="nav-child"><li class="nav-item nav-level-6"><a class="nav-link" href="#数据类型"><span class="nav-number">1.2.1.10.4.1.</span> <span class="nav-text">数据类型</span></a></li></ol></li><li class="nav-item nav-level-5"><a class="nav-link" href="#命令"><span class="nav-number">1.2.1.10.5.</span> <span class="nav-text">命令</span></a></li></ol></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#参考资料"><span class="nav-number">1.3.</span> <span class="nav-text">参考资料</span></a></li></ol></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Golang汇编学习"><span class="nav-number">1.</span> <span class="nav-text">Golang汇编学习</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#前沿"><span class="nav-number">1.1.</span> <span class="nav-text">前沿</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#详情"><span class="nav-number">1.2.</span> <span class="nav-text">详情</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#场景"><span class="nav-number">1.2.1.</span> <span class="nav-text">场景</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Go几个虚拟寄存器"><span class="nav-number">1.2.1.1.</span> <span class="nav-text">Go几个虚拟寄存器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#栈调整"><span class="nav-number">1.2.1.2.</span> <span class="nav-text">栈调整</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#数据搬运"><span class="nav-number">1.2.1.3.</span> <span class="nav-text">数据搬运</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#条件跳转"><span class="nav-number">1.2.1.4.</span> <span class="nav-text">条件跳转</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#section跳转"><span class="nav-number">1.2.1.4.1.</span> <span class="nav-text">section跳转</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#函数调用跳转"><span class="nav-number">1.2.1.4.2.</span> <span class="nav-text">函数调用跳转</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#指令集"><span class="nav-number">1.2.1.5.</span> <span class="nav-text">指令集</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#通用寄存器"><span class="nav-number">1.2.1.6.</span> <span class="nav-text">通用寄存器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#伪寄存器"><span class="nav-number">1.2.1.7.</span> <span class="nav-text">伪寄存器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#变量声明"><span class="nav-number">1.2.1.8.</span> <span class="nav-text">变量声明</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#函数声明"><span class="nav-number">1.2.1.9.</span> <span class="nav-text">函数声明</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#调用其他函数"><span class="nav-number">1.2.1.9.1.</span> <span class="nav-text">调用其他函数</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#回调函数-闭包"><span class="nav-number">1.2.1.9.2.</span> <span class="nav-text">回调函数/闭包</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#栈结构"><span class="nav-number">1.2.1.10.</span> <span class="nav-text">栈结构</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#argsize和framesize计算规则"><span class="nav-number">1.2.1.10.1.</span> <span class="nav-text">argsize和framesize计算规则</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#地址运算"><span class="nav-number">1.2.1.10.2.</span> <span class="nav-text">地址运算</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#示例"><span class="nav-number">1.2.1.10.3.</span> <span class="nav-text">示例</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#数据结构"><span class="nav-number">1.2.1.10.4.</span> <span class="nav-text">数据结构</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#null"><span class="nav-number">1.2.1.10.5.</span> <span class="nav-text"></span></a><ol class="nav-child"><li class="nav-item nav-level-6"><a class="nav-link" href="#数据类型"><span class="nav-number">1.2.1.10.5.1.</span> <span class="nav-text">数据类型</span></a></li></ol></li><li class="nav-item nav-level-5"><a class="nav-link" href="#命令"><span class="nav-number">1.2.1.10.6.</span> <span class="nav-text">命令</span></a></li></ol></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#参考资料"><span class="nav-number">1.3.</span> <span class="nav-text">参考资料</span></a></li></ol></li></ol></div>
             
 
           </div>
