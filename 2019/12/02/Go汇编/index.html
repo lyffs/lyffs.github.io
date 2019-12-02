@@ -82,11 +82,11 @@
 <meta name="description" content="Golang汇编学习前沿本文是我学习Go汇编的一点心得 详情场景1.）算法加速，golang编译器生成的机器码基本上都是通用代码，优化程度一般，我们需要用到特殊优化逻辑、特殊的CPU指令让我们的算法运行速度更快。https:&#x2F;&#x2F;github.com&#x2F;minio&#x2F;sha256-simd 2.）摆脱golang编译器一些约束，如通过汇编调用其他package的私有函数。https:&#x2F;&#x2F;sitano.g">
 <meta property="og:type" content="article">
 <meta property="og:title" content="Go汇编">
-<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;11&#x2F;29&#x2F;Go%E6%B1%87%E7%BC%96&#x2F;index.html">
+<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;12&#x2F;02&#x2F;Go%E6%B1%87%E7%BC%96&#x2F;index.html">
 <meta property="og:site_name" content="Hexo">
 <meta property="og:description" content="Golang汇编学习前沿本文是我学习Go汇编的一点心得 详情场景1.）算法加速，golang编译器生成的机器码基本上都是通用代码，优化程度一般，我们需要用到特殊优化逻辑、特殊的CPU指令让我们的算法运行速度更快。https:&#x2F;&#x2F;github.com&#x2F;minio&#x2F;sha256-simd 2.）摆脱golang编译器一些约束，如通过汇编调用其他package的私有函数。https:&#x2F;&#x2F;sitano.g">
 <meta property="og:locale" content="en">
-<meta property="og:updated_time" content="2019-11-29T15:52:52.873Z">
+<meta property="og:updated_time" content="2019-12-02T14:48:44.352Z">
 <meta name="twitter:card" content="summary">
 
 
@@ -117,7 +117,7 @@
 
 
 
-  <link rel="canonical" href="http://yoursite.com/2019/11/29/Go汇编/"/>
+  <link rel="canonical" href="http://yoursite.com/2019/12/02/Go汇编/"/>
 
 
 
@@ -230,7 +230,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/11/29/Go%E6%B1%87%E7%BC%96/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/02/Go%E6%B1%87%E7%BC%96/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="John Doe">
@@ -259,8 +259,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-11-29T23:52:52+08:00">
-                2019-11-29
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-02T22:48:44+08:00">
+                2019-12-02
               </time>
             
 
@@ -373,7 +373,22 @@ struct { f uintptr; a *int}的结构。该临时内存区域可以分配在栈�
 4.在被调用函数（callee-call） 中从对应参数位置中去除临时内存区域的指针存储在指定寄存器DX(仅限于AMD64平台)
 5.然后从DX指向的临时内存区域的首部取出函数指针，存储于AX
 6.然后在执行CALL AX指令来调用传入的回调函数。
-7.当回调函数是闭包时，需要使用捕获的变量时，直接通过寄存器DX加对应偏移量来获取。                 </code></pre><h4 id="栈结构"><a href="#栈结构" class="headerlink" title="栈结构"></a>栈结构</h4><pre><code>    ---------------------------------
+7.当回调函数是闭包时，需要使用捕获的变量时，直接通过寄存器DX加对应偏移量来获取。</code></pre><h5 id="直接调用C函数（FFI）"><a href="#直接调用C函数（FFI）" class="headerlink" title="直接调用C函数（FFI）"></a>直接调用C函数（FFI）</h5><pre><code>在GO中调用C函数存在巨大的额外开销。可以考虑绕开CGO机制，直接调用C函数，就要遵循C的ABI    
+amd64 c ABI
+在调用C函数时，主流有2种ABI。
+Windows x64 c and c++ ABI 主要适用于各windows平台
+System V ABI 主要适用于Solaris, Linux, FreeBSD, MacOS等
+
+在ABI规定中，参数传递的协议:
+当参数都是整数且少于7个时，参数从左到右放入寄存器：rdi, rsi, rdx, rcx, r8, r9
+当参数都是整数而多于或者等于7个时，前6个还是与前面一样，但后面的依次从右向左放入栈中，即和32位汇编一样。
+
+由于该issue(https://github.com/golang/go/issues/20427#issuecomment-343255844)的存在，通常goroutine的栈空间很小，很可能产生栈溢出的错误。解决的方法有：
+    1.直接切换到g0栈，g0栈是系统原生线程的栈，通常比较大而且与C兼容性更好，切换g0栈方法可以参考（https://github.com/petermattis/fastcgo）的实现，但是有强烈的版本
+    依赖。
+    2.调用函数自身声明一个很大的栈空间，迫使goroutine栈扩张。具体参考方法rustgo(https://blog.filippo.io/rustgo/)，该方法不能确定每一个C函数具体的栈空间需求，只能
+    根据猜测分配一个足够大的，同时也会造成比较大的浪费。
+    3.使用runtime·systemstack切换到g0栈，同时摆脱了版本依赖。具体方法可以参考numa(https://github.com/lrita/numa/blob/2073a6660808a7b8d0fec85013b0301327439d97/numa_linux_amd64.s#L49-L59)</code></pre><h5 id="优化"><a href="#优化" class="headerlink" title="优化"></a>优化</h5><h4 id="栈结构"><a href="#栈结构" class="headerlink" title="栈结构"></a>栈结构</h4><pre><code>    ---------------------------------
     current func arg0
     --------------------------------- &lt;-------FP (pseudo FP)
     caller ret addr
@@ -442,7 +457,7 @@ TEXT .add(SB), NOSPLIT, $0-24
     RET
 `
 
-把两个文件放在任意目录下，执行go build并运行就可以看到效果</code></pre><h5 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h5><h5 id=""><a href="#" class="headerlink" title=""></a></h5><h6 id="数据类型"><a href="#数据类型" class="headerlink" title="数据类型"></a>数据类型</h6><pre><code>标准库的数值类型：
+把两个文件放在任意目录下，执行go build并运行就可以看到效果</code></pre><h5 id="数据结构"><a href="#数据结构" class="headerlink" title="数据结构"></a>数据结构</h5><h6 id="数据类型"><a href="#数据类型" class="headerlink" title="数据类型"></a>数据类型</h6><pre><code>标准库的数值类型：
 1.int/int8/int16/int32/int64
 2.uint/uint8/uint16/uint32/uint64
 3.float32/float64
@@ -464,7 +479,11 @@ https://zhuanlan.zhihu.com/p/56750445?utm_campaign=studygolang.com&amp;utm_mediu
 https://lrita.github.io/2017/12/12/golang-asm/#why
 https://blog.gopheracademy.com/advent-2016/peachpy/
 https://sitano.github.io/2016/04/28/golang-private/
-https://syslog.ravelin.com/anatomy-of-a-function-call-in-go-f6fc81b80ecc</code></pre>
+https://syslog.ravelin.com/anatomy-of-a-function-call-in-go-f6fc81b80ecc
+https://github.com/golang/go/blob/master/src/cmd/compile/internal/gc/lex.go#L52
+https://golang.org/cmd/compile/#hdr-Compiler_Directiveshttps://golang.org/cmd/compile/#hdr-Compiler_Directives
+https://segmentfault.com/a/1190000016354799#articleHeader2
+https://segmentfault.com/a/1190000016743220</code></pre>
       
     </div>
     
@@ -594,7 +613,7 @@ https://syslog.ravelin.com/anatomy-of-a-function-call-in-go-f6fc81b80ecc</code><
             
 
             
-              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Golang汇编学习"><span class="nav-number">1.</span> <span class="nav-text">Golang汇编学习</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#前沿"><span class="nav-number">1.1.</span> <span class="nav-text">前沿</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#详情"><span class="nav-number">1.2.</span> <span class="nav-text">详情</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#场景"><span class="nav-number">1.2.1.</span> <span class="nav-text">场景</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Go几个虚拟寄存器"><span class="nav-number">1.2.1.1.</span> <span class="nav-text">Go几个虚拟寄存器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#栈调整"><span class="nav-number">1.2.1.2.</span> <span class="nav-text">栈调整</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#数据搬运"><span class="nav-number">1.2.1.3.</span> <span class="nav-text">数据搬运</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#条件跳转"><span class="nav-number">1.2.1.4.</span> <span class="nav-text">条件跳转</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#section跳转"><span class="nav-number">1.2.1.4.1.</span> <span class="nav-text">section跳转</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#函数调用跳转"><span class="nav-number">1.2.1.4.2.</span> <span class="nav-text">函数调用跳转</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#指令集"><span class="nav-number">1.2.1.5.</span> <span class="nav-text">指令集</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#通用寄存器"><span class="nav-number">1.2.1.6.</span> <span class="nav-text">通用寄存器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#伪寄存器"><span class="nav-number">1.2.1.7.</span> <span class="nav-text">伪寄存器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#变量声明"><span class="nav-number">1.2.1.8.</span> <span class="nav-text">变量声明</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#函数声明"><span class="nav-number">1.2.1.9.</span> <span class="nav-text">函数声明</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#调用其他函数"><span class="nav-number">1.2.1.9.1.</span> <span class="nav-text">调用其他函数</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#回调函数-闭包"><span class="nav-number">1.2.1.9.2.</span> <span class="nav-text">回调函数/闭包</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#栈结构"><span class="nav-number">1.2.1.10.</span> <span class="nav-text">栈结构</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#argsize和framesize计算规则"><span class="nav-number">1.2.1.10.1.</span> <span class="nav-text">argsize和framesize计算规则</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#地址运算"><span class="nav-number">1.2.1.10.2.</span> <span class="nav-text">地址运算</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#示例"><span class="nav-number">1.2.1.10.3.</span> <span class="nav-text">示例</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#数据结构"><span class="nav-number">1.2.1.10.4.</span> <span class="nav-text">数据结构</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#null"><span class="nav-number">1.2.1.10.5.</span> <span class="nav-text"></span></a><ol class="nav-child"><li class="nav-item nav-level-6"><a class="nav-link" href="#数据类型"><span class="nav-number">1.2.1.10.5.1.</span> <span class="nav-text">数据类型</span></a></li></ol></li><li class="nav-item nav-level-5"><a class="nav-link" href="#命令"><span class="nav-number">1.2.1.10.6.</span> <span class="nav-text">命令</span></a></li></ol></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#参考资料"><span class="nav-number">1.3.</span> <span class="nav-text">参考资料</span></a></li></ol></li></ol></div>
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-1"><a class="nav-link" href="#Golang汇编学习"><span class="nav-number">1.</span> <span class="nav-text">Golang汇编学习</span></a><ol class="nav-child"><li class="nav-item nav-level-2"><a class="nav-link" href="#前沿"><span class="nav-number">1.1.</span> <span class="nav-text">前沿</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#详情"><span class="nav-number">1.2.</span> <span class="nav-text">详情</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#场景"><span class="nav-number">1.2.1.</span> <span class="nav-text">场景</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#Go几个虚拟寄存器"><span class="nav-number">1.2.1.1.</span> <span class="nav-text">Go几个虚拟寄存器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#栈调整"><span class="nav-number">1.2.1.2.</span> <span class="nav-text">栈调整</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#数据搬运"><span class="nav-number">1.2.1.3.</span> <span class="nav-text">数据搬运</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#条件跳转"><span class="nav-number">1.2.1.4.</span> <span class="nav-text">条件跳转</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#section跳转"><span class="nav-number">1.2.1.4.1.</span> <span class="nav-text">section跳转</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#函数调用跳转"><span class="nav-number">1.2.1.4.2.</span> <span class="nav-text">函数调用跳转</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#指令集"><span class="nav-number">1.2.1.5.</span> <span class="nav-text">指令集</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#通用寄存器"><span class="nav-number">1.2.1.6.</span> <span class="nav-text">通用寄存器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#伪寄存器"><span class="nav-number">1.2.1.7.</span> <span class="nav-text">伪寄存器</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#变量声明"><span class="nav-number">1.2.1.8.</span> <span class="nav-text">变量声明</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#函数声明"><span class="nav-number">1.2.1.9.</span> <span class="nav-text">函数声明</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#调用其他函数"><span class="nav-number">1.2.1.9.1.</span> <span class="nav-text">调用其他函数</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#回调函数-闭包"><span class="nav-number">1.2.1.9.2.</span> <span class="nav-text">回调函数/闭包</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#直接调用C函数（FFI）"><span class="nav-number">1.2.1.9.3.</span> <span class="nav-text">直接调用C函数（FFI）</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#优化"><span class="nav-number">1.2.1.9.4.</span> <span class="nav-text">优化</span></a></li></ol></li><li class="nav-item nav-level-4"><a class="nav-link" href="#栈结构"><span class="nav-number">1.2.1.10.</span> <span class="nav-text">栈结构</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#argsize和framesize计算规则"><span class="nav-number">1.2.1.10.1.</span> <span class="nav-text">argsize和framesize计算规则</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#地址运算"><span class="nav-number">1.2.1.10.2.</span> <span class="nav-text">地址运算</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#示例"><span class="nav-number">1.2.1.10.3.</span> <span class="nav-text">示例</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#数据结构"><span class="nav-number">1.2.1.10.4.</span> <span class="nav-text">数据结构</span></a><ol class="nav-child"><li class="nav-item nav-level-6"><a class="nav-link" href="#数据类型"><span class="nav-number">1.2.1.10.4.1.</span> <span class="nav-text">数据类型</span></a></li></ol></li><li class="nav-item nav-level-5"><a class="nav-link" href="#命令"><span class="nav-number">1.2.1.10.5.</span> <span class="nav-text">命令</span></a></li></ol></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#参考资料"><span class="nav-number">1.3.</span> <span class="nav-text">参考资料</span></a></li></ol></li></ol></div>
             
 
           </div>
