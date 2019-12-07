@@ -82,11 +82,11 @@
 <meta name="description" content="Slice 学习前沿本文是我学习slice的一点心得。详情从Go程序反汇编分析Slice  GO: &#96; package main import &amp;quot;fmt&amp;quot; func main() {     res := make([]int, 0)     fmt.Println(&amp;quot;length:&amp;quot;, len(res))     res = append(res, 1)">
 <meta property="og:type" content="article">
 <meta property="og:title" content="slice">
-<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;12&#x2F;05&#x2F;slice&#x2F;index.html">
+<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;12&#x2F;08&#x2F;slice&#x2F;index.html">
 <meta property="og:site_name" content="Hexo">
 <meta property="og:description" content="Slice 学习前沿本文是我学习slice的一点心得。详情从Go程序反汇编分析Slice  GO: &#96; package main import &amp;quot;fmt&amp;quot; func main() {     res := make([]int, 0)     fmt.Println(&amp;quot;length:&amp;quot;, len(res))     res = append(res, 1)">
 <meta property="og:locale" content="en">
-<meta property="og:updated_time" content="2019-12-05T14:52:23.142Z">
+<meta property="og:updated_time" content="2019-12-07T18:10:28.517Z">
 <meta name="twitter:card" content="summary">
 
 
@@ -117,7 +117,7 @@
 
 
 
-  <link rel="canonical" href="http://yoursite.com/2019/12/05/slice/"/>
+  <link rel="canonical" href="http://yoursite.com/2019/12/08/slice/"/>
 
 
 
@@ -230,7 +230,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/05/slice/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/08/slice/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="John Doe">
@@ -259,8 +259,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-05T22:52:23+08:00">
-                2019-12-05
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-08T02:10:28+08:00">
+                2019-12-08
               </time>
             
 
@@ -340,8 +340,32 @@ CALL runtime.growslice(SB)
 <pre><code>    capmem = roundupsize(uintptr(newcap)) //根据类型大小返回内存块大小
     ...
     p = mallocgc(capmem, nil, false) //需要切换都g0协程上申请空间
+        ...
+        mp := acquirem() //获取当前工作线程
+        ...
+        c := gomcache() //返回当前个工作线程的cache(缓存)
+        ...
+        if size &lt;= maxSmallSize(32768) {
+            if noscan &amp;&amp; size &lt; maxTinySize(16) {
+                // Tiny allocator, be noscan (don&apos;t have pointers)
+                ...
+                if off+size &lt;= maxTinySize &amp;&amp; c.tiny != 0 {
+                    x = unsafe.Pointer(c.tiny + off)
+                    releasem(mp)
+                    ...
+                    return x
+                }
+                // Allocate a new maxTinySize block. //申请一个新的maxTinySize（16bytes）的内存块
+
+            } else {
+
+            }
+        else {
+
+        }    
 
 }
+
 `</code></pre>
       
     </div>
@@ -366,15 +390,15 @@ CALL runtime.growslice(SB)
         <div class="post-nav">
           <div class="post-nav-next post-nav-item">
             
-              <a href="/2019/12/04/Go%E6%B1%87%E7%BC%96/" rel="next" title="Go汇编">
-                <i class="fa fa-chevron-left"></i> Go汇编
-              </a>
-            
           </div>
 
           <span class="post-nav-divider"></span>
 
           <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2019/12/08/Go%E6%B1%87%E7%BC%96/" rel="prev" title="Go汇编">
+                Go汇编 <i class="fa fa-chevron-right"></i>
+              </a>
             
           </div>
         </div>

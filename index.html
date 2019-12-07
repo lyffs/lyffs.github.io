@@ -228,7 +228,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/05/slice/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/08/Go%E6%B1%87%E7%BC%96/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="John Doe">
@@ -247,7 +247,7 @@
         
           <h1 class="post-title" itemprop="name headline">
                 
-                <a class="post-title-link" href="/2019/12/05/slice/" itemprop="url">slice</a></h1>
+                <a class="post-title-link" href="/2019/12/08/Go%E6%B1%87%E7%BC%96/" itemprop="url">Go汇编</a></h1>
         
 
         <div class="post-meta">
@@ -259,172 +259,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-05T22:52:23+08:00">
-                2019-12-05
-              </time>
-            
-
-            
-
-            
-          </span>
-
-          
-
-          
-            
-          
-
-          
-          
-
-          
-
-          
-
-          
-
-        </div>
-      </header>
-    
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-      
-
-      
-        
-          
-            <h1 id="Slice-学习"><a href="#Slice-学习" class="headerlink" title="Slice 学习"></a>Slice 学习</h1><h2 id="前沿"><a href="#前沿" class="headerlink" title="前沿"></a>前沿</h2><pre><code>本文是我学习slice的一点心得。</code></pre><h2 id="详情"><a href="#详情" class="headerlink" title="详情"></a>详情</h2><pre><code>从Go程序反汇编分析Slice
-
-GO:
-`
-package main
-import &quot;fmt&quot;
-func main() {
-    res := make([]int, 0)
-    fmt.Println(&quot;length:&quot;, len(res))
-    res = append(res, 1)
-    res = append(res, 2)
-    res = append(res, 3)
-    fmt.Println(&quot;length:&quot;, len(res))
-}    
-`
-
-反汇编： go tool objdump -S src &gt; app.s
-
-ASM: (主要代码)
-`
-LEAQ 0x40(SP), AX
-MOVQ AX, 0x80(SP)
-MOVQ $0x0, 0x88(SP)
-MOVQ $0x0, 0x90(SP)
-...
-MOVQ 0x90(SP), AX
-MOVQ 0x88(SP), CX
-MOVQ 0x80(SP), DX
-LEAQ 0x1(CX), BX
-CMPQ AX, BX
-JG
-...
-LEAQ 0x1068d(IP), SI
-MOVQ SI, 0(SP)
-MOVQ DX, 0x8(SP)
-MOVQ CX, 0x10(SP)
-MOVQ AX, 0x18(SP)
-MOVQ BX, 0x20(SP)
-CALL runtime.growslice(SB)
-`    </code></pre><p>###<br>    CALL runtime.growslice(SB)<br>    `<br>    func growslice(et *_type, old slice, cap int) slice {<br>        //前面是否允许竞争检查<br>        newcap := old.cap<br>        doublecap := newcap + newcap<br>        if cap &gt; doublecap {<br>            newcap = cap<br>        } else {<br>            if old.len &lt; 1024 {<br>                newcap = doublecap //2倍原来的cap<br>            } else {<br>                // Check 0 &lt; newcap to detect overflow<br>                // and prevent an infinite loop.<br>                for 0 &lt; newcap &amp;&amp; newcap &lt; cap {<br>                    newcap += newcap / 4 // 4/1倍增长<br>                }<br>                // Set newcap to the requested cap when<br>                // the newcap calculation overflowed.<br>                if newcap &lt;= 0 {<br>                    newcap = cap<br>                }<br>            }<br>        }</p>
-<pre><code>    capmem = roundupsize(uintptr(newcap)) //根据类型大小返回内存块大小
-    ...
-    p = mallocgc(capmem, nil, false) //需要切换都g0协程上申请空间
-
-}
-`</code></pre>
-          
-        
-      
-    </div>
-    
-    
-    
-
-    
-
-    
-
-    
-
-    <footer class="post-footer">
-      
-
-      
-
-      
-
-      
-      
-        <div class="post-eof"></div>
-      
-    </footer>
-  </div>
-  
-  
-  
-  </article>
-
-
-    
-      
-
-  
-
-  
-  
-  
-
-  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
-  
-  
-  
-  <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/04/Go%E6%B1%87%E7%BC%96/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="name" content="John Doe">
-      <meta itemprop="description" content="">
-      <meta itemprop="image" content="/images/avatar.gif">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-    </span>
-
-    
-      <header class="post-header">
-
-        
-        
-          <h1 class="post-title" itemprop="name headline">
-                
-                <a class="post-title-link" href="/2019/12/04/Go%E6%B1%87%E7%BC%96/" itemprop="url">Go汇编</a></h1>
-        
-
-        <div class="post-meta">
-          <span class="post-time">
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">Posted on</span>
-              
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-04T22:51:25+08:00">
-                2019-12-04
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-08T02:10:35+08:00">
+                2019-12-08
               </time>
             
 
@@ -700,7 +536,196 @@ https://syslog.ravelin.com/anatomy-of-a-function-call-in-go-f6fc81b80ecc
 https://github.com/golang/go/blob/master/src/cmd/compile/internal/gc/lex.go#L52
 https://golang.org/cmd/compile/#hdr-Compiler_Directiveshttps://golang.org/cmd/compile/#hdr-Compiler_Directives
 https://segmentfault.com/a/1190000016354799#articleHeader2
-https://segmentfault.com/a/1190000016743220</code></pre>
+https://segmentfault.com/a/1190000016743220
+https://github.com/sxs2473/go-performane-tuning</code></pre>
+          
+        
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/08/slice/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="John Doe">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2019/12/08/slice/" itemprop="url">slice</a></h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-08T02:10:28+08:00">
+                2019-12-08
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+            <h1 id="Slice-学习"><a href="#Slice-学习" class="headerlink" title="Slice 学习"></a>Slice 学习</h1><h2 id="前沿"><a href="#前沿" class="headerlink" title="前沿"></a>前沿</h2><pre><code>本文是我学习slice的一点心得。</code></pre><h2 id="详情"><a href="#详情" class="headerlink" title="详情"></a>详情</h2><pre><code>从Go程序反汇编分析Slice
+
+GO:
+`
+package main
+import &quot;fmt&quot;
+func main() {
+    res := make([]int, 0)
+    fmt.Println(&quot;length:&quot;, len(res))
+    res = append(res, 1)
+    res = append(res, 2)
+    res = append(res, 3)
+    fmt.Println(&quot;length:&quot;, len(res))
+}    
+`
+
+反汇编： go tool objdump -S src &gt; app.s
+
+ASM: (主要代码)
+`
+LEAQ 0x40(SP), AX
+MOVQ AX, 0x80(SP)
+MOVQ $0x0, 0x88(SP)
+MOVQ $0x0, 0x90(SP)
+...
+MOVQ 0x90(SP), AX
+MOVQ 0x88(SP), CX
+MOVQ 0x80(SP), DX
+LEAQ 0x1(CX), BX
+CMPQ AX, BX
+JG
+...
+LEAQ 0x1068d(IP), SI
+MOVQ SI, 0(SP)
+MOVQ DX, 0x8(SP)
+MOVQ CX, 0x10(SP)
+MOVQ AX, 0x18(SP)
+MOVQ BX, 0x20(SP)
+CALL runtime.growslice(SB)
+`    </code></pre><p>###<br>    CALL runtime.growslice(SB)<br>    `<br>    func growslice(et *_type, old slice, cap int) slice {<br>        //前面是否允许竞争检查<br>        newcap := old.cap<br>        doublecap := newcap + newcap<br>        if cap &gt; doublecap {<br>            newcap = cap<br>        } else {<br>            if old.len &lt; 1024 {<br>                newcap = doublecap //2倍原来的cap<br>            } else {<br>                // Check 0 &lt; newcap to detect overflow<br>                // and prevent an infinite loop.<br>                for 0 &lt; newcap &amp;&amp; newcap &lt; cap {<br>                    newcap += newcap / 4 // 4/1倍增长<br>                }<br>                // Set newcap to the requested cap when<br>                // the newcap calculation overflowed.<br>                if newcap &lt;= 0 {<br>                    newcap = cap<br>                }<br>            }<br>        }</p>
+<pre><code>    capmem = roundupsize(uintptr(newcap)) //根据类型大小返回内存块大小
+    ...
+    p = mallocgc(capmem, nil, false) //需要切换都g0协程上申请空间
+        ...
+        mp := acquirem() //获取当前工作线程
+        ...
+        c := gomcache() //返回当前个工作线程的cache(缓存)
+        ...
+        if size &lt;= maxSmallSize(32768) {
+            if noscan &amp;&amp; size &lt; maxTinySize(16) {
+                // Tiny allocator, be noscan (don&apos;t have pointers)
+                ...
+                if off+size &lt;= maxTinySize &amp;&amp; c.tiny != 0 {
+                    x = unsafe.Pointer(c.tiny + off)
+                    releasem(mp)
+                    ...
+                    return x
+                }
+                // Allocate a new maxTinySize block. //申请一个新的maxTinySize（16bytes）的内存块
+
+            } else {
+
+            }
+        else {
+
+        }    
+
+}
+
+`</code></pre>
           
         
       
