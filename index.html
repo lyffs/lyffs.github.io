@@ -228,6 +228,281 @@
   
   
   <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/08/slice/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="John Doe">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2019/12/08/slice/" itemprop="url">slice</a></h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-08T22:55:44+08:00">
+                2019-12-08
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+            <h1 id="Slice-学习"><a href="#Slice-学习" class="headerlink" title="Slice 学习"></a>Slice 学习</h1><h2 id="前沿"><a href="#前沿" class="headerlink" title="前沿"></a>前沿</h2><pre><code>本文是我学习slice的一点心得。</code></pre><h2 id="详情"><a href="#详情" class="headerlink" title="详情"></a>详情</h2><pre><code>从Go程序反汇编分析Slice
+
+GO:
+`
+package main
+import &quot;fmt&quot;
+func main() {
+    res := make([]int, 0)
+    fmt.Println(&quot;length:&quot;, len(res))
+    res = append(res, 1)
+    res = append(res, 2)
+    res = append(res, 3)
+    fmt.Println(&quot;length:&quot;, len(res))
+}    
+`
+
+反汇编： go tool objdump -S src &gt; app.s
+
+ASM: (主要代码)
+`
+LEAQ 0x40(SP), AX
+MOVQ AX, 0x80(SP)
+MOVQ $0x0, 0x88(SP)
+MOVQ $0x0, 0x90(SP)
+...
+MOVQ 0x90(SP), AX
+MOVQ 0x88(SP), CX
+MOVQ 0x80(SP), DX
+LEAQ 0x1(CX), BX
+CMPQ AX, BX
+JG
+...
+LEAQ 0x1068d(IP), SI
+MOVQ SI, 0(SP)
+MOVQ DX, 0x8(SP)
+MOVQ CX, 0x10(SP)
+MOVQ AX, 0x18(SP)
+MOVQ BX, 0x20(SP)
+CALL runtime.growslice(SB)
+`    </code></pre><h3 id="Golang代码"><a href="#Golang代码" class="headerlink" title="Golang代码"></a>Golang代码</h3><pre><code>CALL runtime.growslice(SB)
+`
+func growslice(et *_type, old slice, cap int) slice {
+    //前面是否允许竞争检查
+    newcap := old.cap
+    doublecap := newcap + newcap
+    if cap &gt; doublecap {
+        newcap = cap 
+    } else {
+        if old.len &lt; 1024 {
+            newcap = doublecap //2倍原来的cap
+        } else {
+            // Check 0 &lt; newcap to detect overflow
+            // and prevent an infinite loop.
+            for 0 &lt; newcap &amp;&amp; newcap &lt; cap {
+                newcap += newcap / 4 // 4/1倍增长
+            }
+            // Set newcap to the requested cap when
+            // the newcap calculation overflowed.
+            if newcap &lt;= 0 {
+                newcap = cap
+            }
+        }
+    }
+
+    capmem = roundupsize(uintptr(newcap)) //根据类型大小返回内存块大小
+    ...
+    p = mallocgc(capmem, nil, false) //需要切换都g0协程上申请空间
+        ...
+        mp := acquirem() //获取当前工作线程
+        ...
+        c := gomcache() //返回当前个工作线程的cache(缓存)
+        ...
+        if size &lt;= maxSmallSize(32768) {
+            if noscan &amp;&amp; size &lt; maxTinySize(16) {
+                // Tiny allocator, be noscan (don&apos;t have pointers)
+                ...
+                if off+size &lt;= maxTinySize &amp;&amp; c.tiny != 0 {
+                    x = unsafe.Pointer(c.tiny + off)
+                    releasem(mp)
+                    ...
+                    return x
+                }
+                // Allocate a new maxTinySize block. //申请一个新的maxTinySize（16bytes）的内存块
+
+            } else {
+                ...
+                v := nextFreeFast(span)
+                ...
+                if v == 0 {
+                    v, span, shouldhelpgc = c.nextFree(spc)
+                }
+                ...
+                if needzero &amp;&amp; span.needzero != 0 {
+                    memclrNoHeapPointers(unsafe.Pointer(v), size) //是由汇编实现
+                }
+            }
+        else {
+            systemstack(func() {
+                s = largeAlloc(size, needzero, noscan)
+            })    //systemstack 汇编实现，切换到
+        }    
+
+}
+
+`</code></pre><h3 id="汇编代码"><a href="#汇编代码" class="headerlink" title="汇编代码"></a>汇编代码</h3><pre><code>TEXT runtime·systemstack(SB), NOSPLIT, $0-8    //无函数栈，1个参数无返回值
+    MOVQ    fn+0(FP), DI    // DI = fn，将第一个参数放在DI寄存器
+    get_tls(CX) // get_tls 是宏，获取当前协程
+    MOVQ    g(CX), AX       // AX = g，将g存在AX寄存器
+    MOVQ    g_m(AX), BX     // BX = m，将工作线程存在BX寄存器
+    CMPQ    AX, m_gsignal(BX) //当前工作线程的gsignal是当前协程
+    JEQ     noswitch //相等无需切换
+
+    MOVQ    m_g0(BX), DX    // DX = g0，获取g0的协程
+    CMPQ    AX, DX  //相等无需切换
+    JEQ     noswitch
+
+    // switch stacks
+    // save our state in g-&gt;sched. Pretend to
+    // be systemstack_switch if the G stack is scanned.
+    MOVQ    $runtime·systemstack_switch(SB), SI
+    MOVQ    SI, (g_sched+gobuf_pc)(AX)
+    MOVQ    SP, (g_sched+gobuf_sp)(AX)
+    MOVQ    AX, (g_sched+gobuf_g)(AX)
+    MOVQ    BP, (g_sched+gobuf_bp)(AX)
+
+     // switch to g0
+    MOVQ    DX, g(CX)
+    MOVQ    (g_sched+gobuf_sp)(DX), BX
+    // make it look like mstart called systemstack on g0, to stop traceback
+    SUBQ    $8, BX
+    MOVQ    $runtime·mstart(SB), DX
+    MOVQ    DX, 0(BX)
+    MOVQ    BX, SP
+
+    // call target function
+    MOVQ    DI, DX
+    MOVQ    0(DI), DI
+    CALL    DI   
+
+    // switch back to g
+    get_tls(CX)
+    MOVQ    g(CX), AX
+    MOVQ    g_m(AX), BX
+    MOVQ    m_curg(BX), AX
+    MOVQ    AX, g(CX)
+    MOVQ    (g_sched+gobuf_sp)(AX), SP
+    MOVQ    $0, (g_sched+gobuf_sp)(AX)
+    RET
+
+    noswitch:
+    // already on m stack; tail call the function
+    // Using a tail call here cleans up tracebacks since we won&apos;t stop
+    // at an intermediate systemstack.
+    MOVQ    DI, DX
+    MOVQ    0(DI), DI
+    JMP     DI</code></pre><p>bad:<br>        // Bad: g is not gsignal, not g0, not curg. What is it?<br>        MOVQ    $runtime·badsystemstack(SB), AX<br>        CALL    AX<br>        INT     $3</p>
+
+          
+        
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
     <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/08/Go%E6%B1%87%E7%BC%96/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -538,194 +813,6 @@ https://golang.org/cmd/compile/#hdr-Compiler_Directiveshttps://golang.org/cmd/co
 https://segmentfault.com/a/1190000016354799#articleHeader2
 https://segmentfault.com/a/1190000016743220
 https://github.com/sxs2473/go-performane-tuning</code></pre>
-          
-        
-      
-    </div>
-    
-    
-    
-
-    
-
-    
-
-    
-
-    <footer class="post-footer">
-      
-
-      
-
-      
-
-      
-      
-        <div class="post-eof"></div>
-      
-    </footer>
-  </div>
-  
-  
-  
-  </article>
-
-
-    
-      
-
-  
-
-  
-  
-  
-
-  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
-  
-  
-  
-  <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/08/slice/">
-
-    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
-      <meta itemprop="name" content="John Doe">
-      <meta itemprop="description" content="">
-      <meta itemprop="image" content="/images/avatar.gif">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="Hexo">
-    </span>
-
-    
-      <header class="post-header">
-
-        
-        
-          <h1 class="post-title" itemprop="name headline">
-                
-                <a class="post-title-link" href="/2019/12/08/slice/" itemprop="url">slice</a></h1>
-        
-
-        <div class="post-meta">
-          <span class="post-time">
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">Posted on</span>
-              
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-08T02:10:28+08:00">
-                2019-12-08
-              </time>
-            
-
-            
-
-            
-          </span>
-
-          
-
-          
-            
-          
-
-          
-          
-
-          
-
-          
-
-          
-
-        </div>
-      </header>
-    
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-      
-
-      
-        
-          
-            <h1 id="Slice-学习"><a href="#Slice-学习" class="headerlink" title="Slice 学习"></a>Slice 学习</h1><h2 id="前沿"><a href="#前沿" class="headerlink" title="前沿"></a>前沿</h2><pre><code>本文是我学习slice的一点心得。</code></pre><h2 id="详情"><a href="#详情" class="headerlink" title="详情"></a>详情</h2><pre><code>从Go程序反汇编分析Slice
-
-GO:
-`
-package main
-import &quot;fmt&quot;
-func main() {
-    res := make([]int, 0)
-    fmt.Println(&quot;length:&quot;, len(res))
-    res = append(res, 1)
-    res = append(res, 2)
-    res = append(res, 3)
-    fmt.Println(&quot;length:&quot;, len(res))
-}    
-`
-
-反汇编： go tool objdump -S src &gt; app.s
-
-ASM: (主要代码)
-`
-LEAQ 0x40(SP), AX
-MOVQ AX, 0x80(SP)
-MOVQ $0x0, 0x88(SP)
-MOVQ $0x0, 0x90(SP)
-...
-MOVQ 0x90(SP), AX
-MOVQ 0x88(SP), CX
-MOVQ 0x80(SP), DX
-LEAQ 0x1(CX), BX
-CMPQ AX, BX
-JG
-...
-LEAQ 0x1068d(IP), SI
-MOVQ SI, 0(SP)
-MOVQ DX, 0x8(SP)
-MOVQ CX, 0x10(SP)
-MOVQ AX, 0x18(SP)
-MOVQ BX, 0x20(SP)
-CALL runtime.growslice(SB)
-`    </code></pre><p>###<br>    CALL runtime.growslice(SB)<br>    `<br>    func growslice(et *_type, old slice, cap int) slice {<br>        //前面是否允许竞争检查<br>        newcap := old.cap<br>        doublecap := newcap + newcap<br>        if cap &gt; doublecap {<br>            newcap = cap<br>        } else {<br>            if old.len &lt; 1024 {<br>                newcap = doublecap //2倍原来的cap<br>            } else {<br>                // Check 0 &lt; newcap to detect overflow<br>                // and prevent an infinite loop.<br>                for 0 &lt; newcap &amp;&amp; newcap &lt; cap {<br>                    newcap += newcap / 4 // 4/1倍增长<br>                }<br>                // Set newcap to the requested cap when<br>                // the newcap calculation overflowed.<br>                if newcap &lt;= 0 {<br>                    newcap = cap<br>                }<br>            }<br>        }</p>
-<pre><code>    capmem = roundupsize(uintptr(newcap)) //根据类型大小返回内存块大小
-    ...
-    p = mallocgc(capmem, nil, false) //需要切换都g0协程上申请空间
-        ...
-        mp := acquirem() //获取当前工作线程
-        ...
-        c := gomcache() //返回当前个工作线程的cache(缓存)
-        ...
-        if size &lt;= maxSmallSize(32768) {
-            if noscan &amp;&amp; size &lt; maxTinySize(16) {
-                // Tiny allocator, be noscan (don&apos;t have pointers)
-                ...
-                if off+size &lt;= maxTinySize &amp;&amp; c.tiny != 0 {
-                    x = unsafe.Pointer(c.tiny + off)
-                    releasem(mp)
-                    ...
-                    return x
-                }
-                // Allocate a new maxTinySize block. //申请一个新的maxTinySize（16bytes）的内存块
-
-            } else {
-
-            }
-        else {
-
-        }    
-
-}
-
-`</code></pre>
           
         
       
