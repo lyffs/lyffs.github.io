@@ -228,6 +228,205 @@
   
   
   <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/14/goexec/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="John Doe">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h1 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2019/12/14/goexec/" itemprop="url">goexec</a></h1>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-14T23:51:14+08:00">
+                2019-12-14
+              </time>
+            
+
+            
+
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          
+            <h2 id="Go-program-execute-process"><a href="#Go-program-execute-process" class="headerlink" title="Go program execute process"></a>Go program execute process</h2><h3 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h3><pre><code>本文从Golang的小程序反汇编得到汇编代码，从中分析Golang程序执行过程。
+
+Golang 程序
+
+`
+    package main
+    import &quot;fmt&quot;
+
+    func main() {
+        ch1 := make(chan int)
+        go func() {
+            fmt.Println(&quot;hello&quot;)
+            ch1 &lt;- 1
+    }()
+    &lt;-ch1
+    }
+
+`
+先通过golang build -gcflags &quot;-N -l&quot; （禁止内联）生成可执行程序，然后通过GDB跟踪。</code></pre><h3 id="详情"><a href="#详情" class="headerlink" title="详情"></a>详情</h3><pre><code>//入口
+1.TEXT runtime·rt0_go(SB),NOSPLIT,$0
+    get_tls(BX)
+           LEAQ    runtime·g0(SB), CX
+           MOVQ    CX, g(BX)
+        LEAQ    runtime·m0(SB), AX
+
+    // save m-&gt;g0 = g0
+        MOVQ    CX, m_g0(AX)
+           // save m0 to g0-&gt;m
+        MOVQ    AX, g_m(CX)
+
+    CALL    runtime·check(SB)
+    MOVL    16(SP), AX              // copy argc
+        MOVL    AX, 0(SP)
+           MOVQ    24(SP), AX              // copy argv
+           MOVQ    AX, 8(SP)
+           CALL    runtime·args(SB)
+        CALL    runtime·osinit(SB)
+        CALL    runtime·schedinit(SB)
+
+    // create a new goroutine to start program
+        MOVQ    $runtime·mainPC(SB), AX         // entry
+           PUSHQ   AX   
+        PUSHQ   $0                      // arg size
+           CALL    runtime·newproc(SB)
+        POPQ    AX   
+        POPQ    AX   
+
+          // start this M
+    // mstart shou never return
+        CALL    runtime·mstart(SB)
+
+
+//类型测试
+2.runtime.check()
+
+//
+3.runtime.args()
+
+//
+4.runtime.osinit()
+    ncpu = getproccount() //获取CPU计算
+    physHugePageSize = getHugePageSize() //获取大页大小
+
+//The bootstrap sequence is:
+// call osinit
+// call schedinit
+// make &amp; queue new G
+// call runtime.mstart
+
+5.runtime.schedinit()
+    _g_ := getg() //获取当前g的指针
+    sched.maxmcount = 10000 //m的最大计数为1w
+    tracebackinit()
+    moduledateverify()
+    stackinit() //初始化stack pool
+    mallocinit() //内存管理初始化
+
+6.runtime.mallocinit()
+    mheap_.init() //堆初始化
+    _g_ := getg()
+    _g_.m.mcache = allocmacache()</code></pre>
+          
+        
+      
+    </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
     <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/09/slice/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -898,7 +1097,7 @@ https://github.com/JerryZhou/golang-doc/blob/master/Golang-Internals/Part-6.Boot
               
                 <a href="/archives/%20%7C%7C%20archive">
               
-                  <span class="site-state-item-count">2</span>
+                  <span class="site-state-item-count">3</span>
                   <span class="site-state-item-name">posts</span>
                 </a>
               </div>

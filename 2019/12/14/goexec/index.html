@@ -79,11 +79,14 @@
 
 
 
-<meta property="og:type" content="website">
-<meta property="og:title" content="Hexo">
-<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;archives&#x2F;2019&#x2F;index.html">
+<meta name="description" content="Go program execute process简介本文从Golang的小程序反汇编得到汇编代码，从中分析Golang程序执行过程。  Golang 程序  &#96;     package main     import &amp;quot;fmt&amp;quot;      func main() {         ch1 := make(chan int)         go func() {">
+<meta property="og:type" content="article">
+<meta property="og:title" content="goexec">
+<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;12&#x2F;14&#x2F;goexec&#x2F;index.html">
 <meta property="og:site_name" content="Hexo">
+<meta property="og:description" content="Go program execute process简介本文从Golang的小程序反汇编得到汇编代码，从中分析Golang程序执行过程。  Golang 程序  &#96;     package main     import &amp;quot;fmt&amp;quot;      func main() {         ch1 := make(chan int)         go func() {">
 <meta property="og:locale" content="en">
+<meta property="og:updated_time" content="2019-12-14T15:51:14.419Z">
 <meta name="twitter:card" content="summary">
 
 
@@ -114,13 +117,13 @@
 
 
 
-  <link rel="canonical" href="http://yoursite.com/archives/2019/"/>
+  <link rel="canonical" href="http://yoursite.com/2019/12/14/goexec/"/>
 
 
 
 
 
-  <title>Archive | Hexo</title>
+  <title>goexec | Hexo</title>
   
 
 
@@ -139,7 +142,7 @@
     
   
 
-  <div class="container sidebar-position-left page-archive">
+  <div class="container sidebar-position-left page-post-detail">
     <div class="headband"></div>
 
     <header id="header" class="header" itemscope itemtype="http://schema.org/WPHeader">
@@ -213,148 +216,220 @@
           <div id="content" class="content">
             
 
-  
-  
-  
-  <div class="post-block archive">
-    <div id="posts" class="posts-collapse">
-      <span class="archive-move-on"></span>
+  <div id="posts" class="posts-expand">
+    
 
-      <span class="archive-page-counter">
+  
+
+  
+  
+  
+
+  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/14/goexec/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="John Doe">
+      <meta itemprop="description" content="">
+      <meta itemprop="image" content="/images/avatar.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Hexo">
+    </span>
+
+    
+      <header class="post-header">
+
         
         
+          <h1 class="post-title" itemprop="name headline">goexec</h1>
         
+
+        <div class="post-meta">
+          <span class="post-time">
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">Posted on</span>
+              
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-14T23:51:14+08:00">
+                2019-12-14
+              </time>
+            
+
+            
+
+            
+          </span>
+
           
-        
-        Um..! 3 posts in total. Keep on posting.
-      </span>
 
-      
-
-        
-        
-        
-
-        
           
-          <div class="collection-title">
-            <h1 class="archive-year" id="archive-year-2019">2019</h1>
-          </div>
-        
-        
+            
+          
 
-        
+          
+          
 
-  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
-    <header class="post-header">
+          
 
-      <h2 class="post-title">
-        
-            <a class="post-title-link" href="/2019/12/14/goexec/" itemprop="url">
-              
-                <span itemprop="name">goexec</span>
-              
-            </a>
-        
-      </h2>
+          
 
-      <div class="post-meta">
-        <time class="post-time" itemprop="dateCreated"
-              datetime="2019-12-14T23:51:14+08:00"
-              content="2019-12-14" >
-          12-14
-        </time>
-      </div>
+          
 
-    </header>
-  </article>
+        </div>
+      </header>
+    
 
-
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
 
       
-
-        
-        
-        
-
-        
-        
-
-        
-
-  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
-    <header class="post-header">
-
-      <h2 class="post-title">
-        
-            <a class="post-title-link" href="/2019/12/09/slice/" itemprop="url">
-              
-                <span itemprop="name">slice</span>
-              
-            </a>
-        
-      </h2>
-
-      <div class="post-meta">
-        <time class="post-time" itemprop="dateCreated"
-              datetime="2019-12-09T23:17:54+08:00"
-              content="2019-12-09" >
-          12-09
-        </time>
-      </div>
-
-    </header>
-  </article>
-
-
-
       
 
-        
-        
-        
-
-        
-        
-
-        
-
-  <article class="post post-type-normal" itemscope itemtype="http://schema.org/Article">
-    <header class="post-header">
-
-      <h2 class="post-title">
-        
-            <a class="post-title-link" href="/2019/12/09/Go%E6%B1%87%E7%BC%96/" itemprop="url">
-              
-                <span itemprop="name">Go汇编</span>
-              
-            </a>
-        
-      </h2>
-
-      <div class="post-meta">
-        <time class="post-time" itemprop="dateCreated"
-              datetime="2019-12-09T23:17:47+08:00"
-              content="2019-12-09" >
-          12-09
-        </time>
-      </div>
-
-    </header>
-  </article>
-
-
-
       
+        <h2 id="Go-program-execute-process"><a href="#Go-program-execute-process" class="headerlink" title="Go program execute process"></a>Go program execute process</h2><h3 id="简介"><a href="#简介" class="headerlink" title="简介"></a>简介</h3><pre><code>本文从Golang的小程序反汇编得到汇编代码，从中分析Golang程序执行过程。
 
+Golang 程序
+
+`
+    package main
+    import &quot;fmt&quot;
+
+    func main() {
+        ch1 := make(chan int)
+        go func() {
+            fmt.Println(&quot;hello&quot;)
+            ch1 &lt;- 1
+    }()
+    &lt;-ch1
+    }
+
+`
+先通过golang build -gcflags &quot;-N -l&quot; （禁止内联）生成可执行程序，然后通过GDB跟踪。</code></pre><h3 id="详情"><a href="#详情" class="headerlink" title="详情"></a>详情</h3><pre><code>//入口
+1.TEXT runtime·rt0_go(SB),NOSPLIT,$0
+    get_tls(BX)
+           LEAQ    runtime·g0(SB), CX
+           MOVQ    CX, g(BX)
+        LEAQ    runtime·m0(SB), AX
+
+    // save m-&gt;g0 = g0
+        MOVQ    CX, m_g0(AX)
+           // save m0 to g0-&gt;m
+        MOVQ    AX, g_m(CX)
+
+    CALL    runtime·check(SB)
+    MOVL    16(SP), AX              // copy argc
+        MOVL    AX, 0(SP)
+           MOVQ    24(SP), AX              // copy argv
+           MOVQ    AX, 8(SP)
+           CALL    runtime·args(SB)
+        CALL    runtime·osinit(SB)
+        CALL    runtime·schedinit(SB)
+
+    // create a new goroutine to start program
+        MOVQ    $runtime·mainPC(SB), AX         // entry
+           PUSHQ   AX   
+        PUSHQ   $0                      // arg size
+           CALL    runtime·newproc(SB)
+        POPQ    AX   
+        POPQ    AX   
+
+          // start this M
+    // mstart shou never return
+        CALL    runtime·mstart(SB)
+
+
+//类型测试
+2.runtime.check()
+
+//
+3.runtime.args()
+
+//
+4.runtime.osinit()
+    ncpu = getproccount() //获取CPU计算
+    physHugePageSize = getHugePageSize() //获取大页大小
+
+//The bootstrap sequence is:
+// call osinit
+// call schedinit
+// make &amp; queue new G
+// call runtime.mstart
+
+5.runtime.schedinit()
+    _g_ := getg() //获取当前g的指针
+    sched.maxmcount = 10000 //m的最大计数为1w
+    tracebackinit()
+    moduledateverify()
+    stackinit() //初始化stack pool
+    mallocinit() //内存管理初始化
+
+6.runtime.mallocinit()
+    mheap_.init() //堆初始化
+    _g_ := getg()
+    _g_.m.mcache = allocmacache()</code></pre>
+      
     </div>
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/12/09/slice/" rel="next" title="slice">
+                <i class="fa fa-chevron-left"></i> slice
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
   </div>
   
   
   
+  </article>
 
-  
 
+
+    <div class="post-spread">
+      
+    </div>
+  </div>
 
 
           </div>
@@ -362,6 +437,10 @@
 
 
           
+
+  
+
+
 
         </div>
         
@@ -382,8 +461,17 @@
       
 
       
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            Table of Contents
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            Overview
+          </li>
+        </ul>
+      
 
-      <section class="site-overview-wrap sidebar-panel sidebar-panel-active">
+      <section class="site-overview-wrap sidebar-panel">
         <div class="site-overview">
           <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
             
@@ -425,6 +513,22 @@
         </div>
       </section>
 
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#Go-program-execute-process"><span class="nav-number">1.</span> <span class="nav-text">Go program execute process</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#简介"><span class="nav-number">1.1.</span> <span class="nav-text">简介</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#详情"><span class="nav-number">1.2.</span> <span class="nav-text">详情</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
       
 
       
@@ -558,6 +662,10 @@
   
 
   
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=5.1.4"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=5.1.4"></script>
+
+
 
   
 
