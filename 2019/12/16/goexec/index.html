@@ -82,11 +82,11 @@
 <meta name="description" content="Go program execute process简介本文从Golang的小程序反汇编得到汇编代码，从中分析Golang程序执行过程。  Golang 程序  &#96;     package main     import &amp;quot;fmt&amp;quot;      func main() {         ch1 := make(chan int)         go func() {">
 <meta property="og:type" content="article">
 <meta property="og:title" content="goexec">
-<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;12&#x2F;14&#x2F;goexec&#x2F;index.html">
+<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;12&#x2F;16&#x2F;goexec&#x2F;index.html">
 <meta property="og:site_name" content="Hexo">
 <meta property="og:description" content="Go program execute process简介本文从Golang的小程序反汇编得到汇编代码，从中分析Golang程序执行过程。  Golang 程序  &#96;     package main     import &amp;quot;fmt&amp;quot;      func main() {         ch1 := make(chan int)         go func() {">
 <meta property="og:locale" content="en">
-<meta property="og:updated_time" content="2019-12-14T15:51:14.419Z">
+<meta property="og:updated_time" content="2019-12-16T14:51:19.461Z">
 <meta name="twitter:card" content="summary">
 
 
@@ -117,7 +117,7 @@
 
 
 
-  <link rel="canonical" href="http://yoursite.com/2019/12/14/goexec/"/>
+  <link rel="canonical" href="http://yoursite.com/2019/12/16/goexec/"/>
 
 
 
@@ -230,7 +230,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/14/goexec/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/16/goexec/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="John Doe">
@@ -259,8 +259,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-14T23:51:14+08:00">
-                2019-12-14
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-16T22:51:19+08:00">
+                2019-12-16
               </time>
             
 
@@ -372,12 +372,41 @@ Golang 程序
     tracebackinit()
     moduledateverify()
     stackinit() //初始化stack pool
-    mallocinit() //内存管理初始化
+    mallocinit() //内存管理初始化，主要是初始花mheap_，初始化arena。定义不同内存状态的申请
+    mcommoninit(_g_.m) //m公共初始化
+    cpuinit() //cpu初始化
+    alginit() //算法初始化
+    modulesinit() //
+    typelinksinit()
+    itabsinit()
+
+    msigsave(_g_.m)
+
+    goargs()
+    goenvs()
+    parsedebuggvars() //解析debug变量
+    gcinit() //gc初始化，设置gc百分比
+
+    procresize(procs) //write barrier needs a P    
 
 6.runtime.mallocinit()
     mheap_.init() //堆初始化
     _g_ := getg()
-    _g_.m.mcache = allocmacache()</code></pre>
+    _g_.m.mcache = allocmacache()
+
+7.runtime.mcommoninit()
+    mpreinit(mp) //m.gsignal初始化，其中新建g，同时g的stack需要申请。从系统内存申请，或者从stackpool申请，或者从heap（mheap_）申请。
+
+8.runtime.procresize(nproc int32) *p
+    // initialize new P&apos;s
+    for i := old; i &lt; nprocs; i++ {
+        pp := allp[i]
+        if pp == nil {
+            pp = new(p)
+        }
+        pp.init(i) //设置pp的状态为:_Pgcstop,pp.mcache = getg().m.mcache //或者pp.mcache = allocmcache()
+        atomicstorep(unsafe.Pointer(&amp;allp[i]), unsafe.Pointer(pp))
+    }</code></pre>
       
     </div>
     
