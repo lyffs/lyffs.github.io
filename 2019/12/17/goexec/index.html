@@ -82,11 +82,11 @@
 <meta name="description" content="Go program execute process简介本文从Golang的小程序反汇编得到汇编代码，从中分析Golang程序执行过程。  Golang 程序  &#96;     package main     import &amp;quot;fmt&amp;quot;      func main() {         ch1 := make(chan int)         go func() {">
 <meta property="og:type" content="article">
 <meta property="og:title" content="goexec">
-<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;12&#x2F;16&#x2F;goexec&#x2F;index.html">
+<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;12&#x2F;17&#x2F;goexec&#x2F;index.html">
 <meta property="og:site_name" content="Hexo">
 <meta property="og:description" content="Go program execute process简介本文从Golang的小程序反汇编得到汇编代码，从中分析Golang程序执行过程。  Golang 程序  &#96;     package main     import &amp;quot;fmt&amp;quot;      func main() {         ch1 := make(chan int)         go func() {">
 <meta property="og:locale" content="en">
-<meta property="og:updated_time" content="2019-12-16T14:51:19.461Z">
+<meta property="og:updated_time" content="2019-12-17T15:14:58.343Z">
 <meta name="twitter:card" content="summary">
 
 
@@ -117,7 +117,7 @@
 
 
 
-  <link rel="canonical" href="http://yoursite.com/2019/12/16/goexec/"/>
+  <link rel="canonical" href="http://yoursite.com/2019/12/17/goexec/"/>
 
 
 
@@ -230,7 +230,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/16/goexec/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/17/goexec/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="John Doe">
@@ -259,8 +259,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-16T22:51:19+08:00">
-                2019-12-16
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-17T23:14:58+08:00">
+                2019-12-17
               </time>
             
 
@@ -385,8 +385,6 @@ Golang 程序
     goargs()
     goenvs()
     parsedebuggvars() //解析debug变量
-    gcinit() //gc初始化，设置gc百分比
-
     procresize(procs) //write barrier needs a P    
 
 6.runtime.mallocinit()
@@ -404,9 +402,60 @@ Golang 程序
         if pp == nil {
             pp = new(p)
         }
+
         pp.init(i) //设置pp的状态为:_Pgcstop,pp.mcache = getg().m.mcache //或者pp.mcache = allocmcache()
         atomicstorep(unsafe.Pointer(&amp;allp[i]), unsafe.Pointer(pp))
-    }</code></pre>
+    }
+
+9.runtime.main()
+    lockOSThread()        
+    if g.m != &amp;m0 {
+        throw(&quot;runtime.main not on m0&quot;)
+    } //当前工作线程必须是m0    
+
+    doInit(&amp;runtime_inittask) //必须要在defer之前
+
+    gcenable() //开启gc，启动bgsweep() bgscavenge协程
+
+    doInit(&amp;main_inittask)
+    unlockOSThread()
+
+    fn := main_main // make an indirect call, as the linker doesn&apos;t know the address of the main package when laying down the runtime
+    fn()
+
+    if atomic.Load(&amp;panicking) != 0 {
+        gopark(nil, nil, waitReasonPanicWait, traceEvGoStop, 1)
+    }
+
+    exit(0)
+
+10.runtime.gcenable() 
+    c := make(chan int, 2)
+    go bgsweep(c)
+    go bgscavenge(c)
+    &lt;-c
+    &lt;-c
+    memstats.enablegc = true
+
+11.func gopark(unlockf func(*g, unsafe.Pointer) bool, lock unsafe.Pointer, reason waitReason, traceEv byte, traceskip int)
+    // 将当前goroutine设置为waiting状态，并且调用unlockf函数
+    // 如果unlockf返回false，goroutine恢复
+    // reason解释goroutine parked的原因
+    // 它显示在堆栈跟踪和堆转储中
+
+    mp := acquirem() //获取当前goroutine关联的m
+    gp := mp.curg //获取m中正在运行的goroutine
+    status := readgstatus(gp) //获取gp(goroutine)的状态
+    mp.waitlock = lock
+    mp.waitunlock = unlockf
+
+    gp.waitreason = reason
+
+    mp.waittraceev = traceEv
+    mp.waittraceskip = traceskip
+
+    releasem(mp)    
+    mcall(park_m)</code></pre>
       
     </div>
     
