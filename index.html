@@ -228,7 +228,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/17/goexec/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/19/goexec/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="John Doe">
@@ -247,7 +247,7 @@
         
           <h1 class="post-title" itemprop="name headline">
                 
-                <a class="post-title-link" href="/2019/12/17/goexec/" itemprop="url">goexec</a></h1>
+                <a class="post-title-link" href="/2019/12/19/goexec/" itemprop="url">goexec</a></h1>
         
 
         <div class="post-meta">
@@ -259,8 +259,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-17T23:14:58+08:00">
-                2019-12-17
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-19T23:21:32+08:00">
+                2019-12-19
               </time>
             
 
@@ -456,8 +456,79 @@ Golang 程序
     mp.waittraceev = traceEv
     mp.waittraceskip = traceskip
 
-    releasem(mp)    
-    mcall(park_m)</code></pre>
+    releasem(mp)
+
+    // func mcall(fn func(*g))
+    // mcall从g切换到g0栈调用fn(g)，其中g是发起调用的goroutine。
+    // mcall将g当前的PC/SP保存在g-sched以便以后恢复。
+    // 由fn决定稍后的执行，通过记录g到数据结构中，从而后面可以调用ready(g)
+    // 当g被重新调度时，mcall随后返回原始goroutine g。
+    // fn绝对不能返回；通常通过调用schedule结束，让m来执行其他goroutine。
+    // 
+    // mcall只能在g stack(非g0或者gsignal)中被调用
+    //
+    // 函数必须是 go:noescape(不能逃逸)，如果fn是栈分配的闭包，
+    // fn将g放在运行队列中，g在fn返回之前执行。闭包在执行过程中无效。
+
+    mcall(park_m)
+
+
+12.runtime.newproc(siz int32, fn *funcval) 
+    //创建一个新的协程用于运行fn
+    //将fn放在g的队列中等待运行
+    //编译器将go声明转换成对它的调用
+    //协程stack不能split因为它猜测函数参数在fn后面有效排列，如果stack split，他们不会复制
+
+    argp := add(unsafe.Pointer(&amp;fn), sys.PtrSize) //获取参数地址
+    gp := getg() //获取当前goroutine
+    pc := getcallerpc()
+
+    //systemstack: 
+    systemstack(func() {
+        newproc1(fn, (*uint8)(argp), siz, gp, pc)
+    }) 
+
+
+13.runtime.park_m
+    // 在g0中继续暂停
+    // 
+
+    _g_ := getg()
+
+    casgstatus(gp, _Grunning, _Gwaiting)
+
+14.runtime.casgstatus(gp *g, oldval, newval uint32)
+    // 如果设置为Gscanstatus或者从Gscanstatus状态变更，这样抛出异常。取而代之的是castogscanstatus 和casfrom_Gscanstatus
+            // 如果g-&gt;atomicstatus处于Gscan状态，casgstatus将会一直循环，直到设置状态为Gscan的routine完成。
+
+    if (oldval&amp;_Gscan != 0) || (newval&amp;_Gscan != 0) || oldval == newval {
+        //throw() //在系统栈
+    }    
+
+    if oldval == _Grunning &amp;&amp; gp.gcscanvalid {
+        //throw() //在系统栈
+    }
+
+    const yieldDelay = 5 * 1000
+
+    // 如果gp-&gt;atomicstatus处于扫描状态，循环会给GC时间完成并且将状态修改为oldval
+    for i := 0; !atomic.Cas(&amp;gp.atomicstatus, oldval, newval); i++ {
+        if i == 0 {
+            nextYield = nanotime() + yieldDelay
+        }
+        if nanotime() &lt; nextYield {
+            for x := 0; x &lt; 10 &amp;&amp; gp.atomicstatus != oldval; x++ {
+                procyield(1)
+            }
+        } else {
+            osyield()
+            nextYield = nanotime() + yieldDelay/2
+        }
+    }    
+
+    if newval == _Grunning {
+        gp.gcscanvalid = false
+    }</code></pre><h3 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h3><pre><code>https://docs.oracle.com/cd/E19205-01/820-1200/blaoy/index.html</code></pre>
           
         
       
