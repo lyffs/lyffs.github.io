@@ -228,7 +228,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/19/goexec/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/21/goexec/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="John Doe">
@@ -247,7 +247,7 @@
         
           <h1 class="post-title" itemprop="name headline">
                 
-                <a class="post-title-link" href="/2019/12/19/goexec/" itemprop="url">goexec</a></h1>
+                <a class="post-title-link" href="/2019/12/21/goexec/" itemprop="url">goexec</a></h1>
         
 
         <div class="post-meta">
@@ -259,8 +259,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-19T23:21:32+08:00">
-                2019-12-19
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-21T00:41:47+08:00">
+                2019-12-21
               </time>
             
 
@@ -352,13 +352,13 @@ Golang 程序
 
 
 //类型测试
-2.runtime.check()
+2 runtime.check()
 
 //
-3.runtime.args()
+3 runtime.args()
 
 //
-4.runtime.osinit()
+4 runtime.osinit()
     ncpu = getproccount() //获取CPU计算
     physHugePageSize = getHugePageSize() //获取大页大小
 
@@ -368,7 +368,7 @@ Golang 程序
 // make &amp; queue new G
 // call runtime.mstart
 
-5.runtime.schedinit()
+5 runtime.schedinit()
     _g_ := getg() //获取当前g的指针
     sched.maxmcount = 10000 //m的最大计数为1w
     tracebackinit()
@@ -389,15 +389,15 @@ Golang 程序
     parsedebuggvars() //解析debug变量
     procresize(procs) //write barrier needs a P    
 
-6.runtime.mallocinit()
+6 runtime.mallocinit()
     mheap_.init() //堆初始化
     _g_ := getg()
     _g_.m.mcache = allocmacache()
 
-7.runtime.mcommoninit()
+7 runtime.mcommoninit()
     mpreinit(mp) //m.gsignal初始化，其中新建g，同时g的stack需要申请。从系统内存申请，或者从stackpool申请，或者从heap（mheap_）申请。
 
-8.runtime.procresize(nproc int32) *p
+8 runtime.procresize(nproc int32) *p
     // initialize new P&apos;s
     for i := old; i &lt; nprocs; i++ {
         pp := allp[i]
@@ -409,7 +409,7 @@ Golang 程序
         atomicstorep(unsafe.Pointer(&amp;allp[i]), unsafe.Pointer(pp))
     }
 
-9.runtime.main()
+9 runtime.main()
     lockOSThread()        
     if g.m != &amp;m0 {
         throw(&quot;runtime.main not on m0&quot;)
@@ -431,7 +431,7 @@ Golang 程序
 
     exit(0)
 
-10.runtime.gcenable() 
+10 runtime.gcenable() 
     c := make(chan int, 2)
     go bgsweep(c)
     go bgscavenge(c)
@@ -439,7 +439,7 @@ Golang 程序
     &lt;-c
     memstats.enablegc = true
 
-11.func gopark(unlockf func(*g, unsafe.Pointer) bool, lock unsafe.Pointer, reason waitReason, traceEv byte, traceskip int)
+11 func gopark(unlockf func(*g, unsafe.Pointer) bool, lock unsafe.Pointer, reason waitReason, traceEv byte, traceskip int)
     // 将当前goroutine设置为waiting状态，并且调用unlockf函数
     // 如果unlockf返回false，goroutine恢复
     // reason解释goroutine parked的原因
@@ -473,7 +473,7 @@ Golang 程序
     mcall(park_m)
 
 
-12.runtime.newproc(siz int32, fn *funcval) 
+12 runtime.newproc(siz int32, fn *funcval) 
     //创建一个新的协程用于运行fn
     //将fn放在g的队列中等待运行
     //编译器将go声明转换成对它的调用
@@ -489,17 +489,32 @@ Golang 程序
     }) 
 
 
-13.runtime.park_m
+13 runtime.park_m
     // 在g0中继续暂停
-    // 
 
     _g_ := getg()
 
+    //将gp状态从_Grunning变更为_Gwaiting
     casgstatus(gp, _Grunning, _Gwaiting)
 
-14.runtime.casgstatus(gp *g, oldval, newval uint32)
+    //dropg 解除m与curg的联系
+    dropg()
+
+    if fn := _g_.m.waitunlockf; fn != nil {
+        ok := fn(gp, _g_.m.waitlock)
+        _g_.m.waitunlockf = nil
+        _g_.m.waitlock = nil
+        if !ok {
+            casgstatus(gp, _Gwaiting, _Grunnable)
+            execute(gp, true)
+        }
+    }
+
+    schedule()
+
+14 runtime.casgstatus(gp *g, oldval, newval uint32)
     // 如果设置为Gscanstatus或者从Gscanstatus状态变更，这样抛出异常。取而代之的是castogscanstatus 和casfrom_Gscanstatus
-            // 如果g-&gt;atomicstatus处于Gscan状态，casgstatus将会一直循环，直到设置状态为Gscan的routine完成。
+        // 如果g-&gt;atomicstatus处于Gscan状态，casgstatus将会一直循环，直到设置状态为Gscan的routine完成。
 
     if (oldval&amp;_Gscan != 0) || (newval&amp;_Gscan != 0) || oldval == newval {
         //throw() //在系统栈
@@ -528,7 +543,118 @@ Golang 程序
 
     if newval == _Grunning {
         gp.gcscanvalid = false
-    }</code></pre><h3 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h3><pre><code>https://docs.oracle.com/cd/E19205-01/820-1200/blaoy/index.html</code></pre>
+    }
+
+15 runtime.dropg()
+    // dropg将移除m和当前routine m-&gt;curg的关联
+    // 通常调用者变更gp的Grunning状态然后立刻调用dropg完成该项工作
+    // 调用者还负责安排gp在恰当的时间状态变更为ready重新启动。
+    // 在调用dropg和稍后安排gp状态变更为ready，调用者可以做其他工作
+    // 但最终应该调用schedule来重新启动这个m上面的goroutine调度。
+
+    _g_ := getg()
+
+     setMNoWB(&amp;_g_.m.curg.m, nil) //非写屏障设置m当前gouroutine的m为空
+     setGNoWB(&amp;_g_.m.curg, nil) //非写屏障设置m当前goroutine为空
+
+16 runtime.execute(gp *g, inheritTime bool)
+    // 调度gp在当前M上运行。
+    // 如果inheritTime是true，gp在当前时间片中继承保留的时间。否则它开始一个新的
+    // 时间片。
+    // 从不返回
+
+    // 允许写屏障因为在几个地方获得P之后立即调用。
+    _g_ := getg()
+    // 将gp的状态从_Grunnable变更为_Grunning
+    casgstatus(gp, _Grunnable, _Grunning)
+    gp.waitsince = 0
+    gp.preemt = false
+    gp.stackguard0 = gp.stack.lo + _StackGuard
+    if !inheritTime {
+        _g_.m.p.ptr().schedtick++
+    }
+
+    _g_.m.curg = gp //将m的正在运行的goroutine变更为gp
+    gp.m = _g_.m //将gp的m变更为_g_.m
+
+    // 检查profiler是否需要打开或者关闭
+    hz := sched.profilehz
+    if _g_.m.profilehz != hz {
+        setThreadCPUProfiler(hz)
+    }
+
+    gogo(&amp;gp.sched)
+
+17 runtime.schedule()
+    // 调用执行一轮是：寻找一个可执行的goroutine并且执行。
+    _g_ := getg()
+
+    // guintptr, muintptr, and puintptr 用来绕过写屏障
+    // 当 当前P被释放时，避免写屏障特别重要。因为GC认为整个
+    // 程序已经停止，一个未预期的写屏障不会与GC同步，这可能导致
+    // 对象已经标记但没有入队的执行到一半的写屏障。如果在入队之前
+    // GC跳过该对象并且完成，这将导致不正确的释放该对象。
+
+    // 我们尝试当没有拥有一个正在运行的P时只使用特殊的赋值函数，但是
+    // 一些特殊内存单词的更新可以穿过写屏障，而有些没有。这打破写屏障阴影检查
+    // 的模式，同时令人害怕的是：拥有一个完全被GC忽视的单词要比拥有一个只忽略少量
+    // 更新的单词要好。
+
+    // 在allgs和allp 列表中 或者来自栈变量（在他们到达那些列表之前的变量申请）的Gs
+    // 和Ps通过正确的指针访问总是有效的。
+
+    // 不论来自allm还是来自freem，Ms通过正确的指针访问总是有效。不像 Gs 和 Ps，我们
+    // 释放 Ms，所有没有任何东西拥有越过安全点的muintptr非常重要。
+
+    // A guintptr持有一个goroutine的指针，但是作为绕过写屏障的uintptr类型。它用在
+    // Gobuf goroutine状态和不使用P操作的调度列表中。
+
+    // Gobuf.g goroutine指针 总是被汇编代码更新。在一小部分地方中，
+    // 它是由go代码更新 -func save-，它必须被看做一个uintptr为了避免在错误的时间
+    // 产生写屏障。为了取代理解在非汇编操作中产生写屏障，我们改变uintptr的类型，所以
+    // 它根本不需要写屏障
+
+    // goroutine结构被发布在allg列表中并且从不释放。它将阻止goroutine结构被回收。
+    // Gobuf.g 从来不是goroutine的唯一引用。在allg上发布的goroutine最新生成。
+    // Goroutine的指针同时会保留在GC不可见的地方，比如：TLS，所以我不能看到它们
+    // 移动过。如果我们确实想开始移动数据到GC，我们需要从恰当的arena中申请
+    // goroutine结构。用guintptr指针不让错误变得更糟糕。
+    、
+
+    if _g_.m.lockedg != 0 {
+        stoplockedm()
+        execute(_g_.m.lockedg.ptr(), false)
+    }
+
+18 runtime.stoplockedm() 
+    // 停止锁定到g的当前M 的执行，知道g再次执行。
+    _g_ := getg()
+
+    if _g_.m.p != 0 {
+        // 调度其他M来运行这个P
+        _p_ := releasep()
+        handoffp(_p_)
+    }
+
+19 runtime.releasep() *p
+    // 断开p与当前m的联系
+    _g_ := getg()
+    // 获得当前m关联的p
+    _p_ := _g_.m.p.ptr()
+    // 当前m的p为0
+    _g_.m.p = 0
+    // 当前m的mcache为nil
+    _g_.m.mcache = nil
+    // 相应的p的m为0
+    _p_.m = 0
+    // 设置p的状态为空闲
+    _p_.status = _Pidle
+    return _p_
+
+20 runtime.handoffp(_p_ *p)
+    // 通过系统调用或者锁定的M，挂起_p_
+    // 总是不需要P运行，所以不允许写屏障。
+    // </code></pre><h3 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h3><pre><code>https://docs.oracle.com/cd/E19205-01/820-1200/blaoy/index.html</code></pre>
           
         
       
