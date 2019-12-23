@@ -82,11 +82,11 @@
 <meta name="description" content="Go program execute process简介本文从Golang的小程序反汇编得到汇编代码，从中分析Golang程序执行过程。  Golang 程序  &#96;     package main     import &amp;quot;fmt&amp;quot;      func main() {         ch1 := make(chan int)         go func() {">
 <meta property="og:type" content="article">
 <meta property="og:title" content="goexec">
-<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;12&#x2F;21&#x2F;goexec&#x2F;index.html">
+<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;12&#x2F;23&#x2F;goexec&#x2F;index.html">
 <meta property="og:site_name" content="Hexo">
 <meta property="og:description" content="Go program execute process简介本文从Golang的小程序反汇编得到汇编代码，从中分析Golang程序执行过程。  Golang 程序  &#96;     package main     import &amp;quot;fmt&amp;quot;      func main() {         ch1 := make(chan int)         go func() {">
 <meta property="og:locale" content="en">
-<meta property="og:updated_time" content="2019-12-20T16:41:41.392Z">
+<meta property="og:updated_time" content="2019-12-23T15:22:00.637Z">
 <meta name="twitter:card" content="summary">
 
 
@@ -117,7 +117,7 @@
 
 
 
-  <link rel="canonical" href="http://yoursite.com/2019/12/21/goexec/"/>
+  <link rel="canonical" href="http://yoursite.com/2019/12/23/goexec/"/>
 
 
 
@@ -230,7 +230,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/21/goexec/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/23/goexec/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="John Doe">
@@ -259,8 +259,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-21T00:41:47+08:00">
-                2019-12-21
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-23T23:22:00+08:00">
+                2019-12-23
               </time>
             
 
@@ -617,7 +617,6 @@ Golang 程序
     // Goroutine的指针同时会保留在GC不可见的地方，比如：TLS，所以我不能看到它们
     // 移动过。如果我们确实想开始移动数据到GC，我们需要从恰当的arena中申请
     // goroutine结构。用guintptr指针不让错误变得更糟糕。
-    、
 
     if _g_.m.lockedg != 0 {
         stoplockedm()
@@ -625,7 +624,7 @@ Golang 程序
     }
 
 18 runtime.stoplockedm() 
-    // 停止锁定到g的当前M 的执行，知道g再次执行。
+    // 停止锁定到g的当前M 的执行，直到g再次执行。
     _g_ := getg()
 
     if _g_.m.p != 0 {
@@ -652,7 +651,134 @@ Golang 程序
 20 runtime.handoffp(_p_ *p)
     // 通过系统调用或者锁定的M，挂起_p_
     // 总是不需要P运行，所以不允许写屏障。
-    // </code></pre><h3 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h3><pre><code>https://docs.oracle.com/cd/E19205-01/820-1200/blaoy/index.html</code></pre>
+    // handoffp 必须在findrunnable返回G并在_p_上运行的任何情况下启动M。
+
+    if !runqempty(_p_) || sched.runqsize != 0 {
+
+    }
+
+21 runtime.runqempty(_p_ *p) bool 
+    // runqempty报告_p_在本地运行队列中是否有Gs。
+    // 假设它从不返回true
+
+    for {
+        head := atomic.Load(&amp;_p_.runqhead)
+        tail := atomic.Load(&amp;_p_.runqtail)
+        runnext := atomic.Loaduintptr((*uintptr)(unsafe.Pointer(&amp;_p_.runnext)))
+        // p.runnext，如果非空，是一个由当前G准备的可运行的G。
+        // 如果正在运行的G还有时间片，那么接着运行的应该是runnext，而不是
+        // 在runq中Gs。它将继承当前时间片剩余的时间。
+        // 如果一部分的goroutine被锁定为通信与等待的模式，被设置为一个单元的调度
+        // 消除由于将处于准备状态的goroutine添加到队列末尾而产生（可能）很大
+        // 调度延迟。
+
+        if tail == atomic.load(&amp;_p_.runqtail) {
+            return head == tail &amp;&amp; runnext == 0
+        }
+    }
+
+22 runtime.startm(_p_ *p, spinning bool)
+    // 调度一些M来运行P(如果需要会创建新的M)
+    // 如果p为空，尝试获取一个空闲的p，如果没有空闲p怎不做任何处理。
+    // 可能运行时m.p为空，所以不允许写屏障。
+    // 如果设置了spinning，调用者已经增加nmspinning和startm将减少nmspinning或者在新启动的M中设置m.spinning
+
+    lock(&amp;sched.lock)
+    if _p_  == nil {
+        // 尝试从空闲列表中返回p
+        // sched必须被锁定
+        // 可能y运行中处于STW，所以不允许写屏障。
+        _p_  = pidleget() 
+        if _p_ == nil {
+            unlock(&amp;sched.lock)
+            if spinning {
+
+            }
+            return
+        }
+    }
+
+    mp := mget()
+    // 尝试从空闲链表中返回m
+    unlock(&amp;sched.lock)
+
+    if mp == nil {
+        var fn func()
+        if spinning {
+            fn = mspinning
+        }
+        newm(fn, _p_)
+        return
+    }
+
+23 runtime.newm(fn func(), _p_ *p)    
+    // 创建一个新的m，它开始于fn的调用，或者调度器
+    // 
+
+
+30 runtime.newproc1(fn *funcval, argp *uint8, narg int32, callergp *g, callerpc uintptr)
+    // 创建一个运行fn从argp开始拥有narg字节参数的协程。callerpc是创建它的go语句地址。
+    // 新的g被放到等待运行的g队列中。
+    _g_ := getg() //获取当前goroutine
+    acquirem() //
+
+    _p_ := _g_.m.p.ptr() //返回PP指针
+    newg := gfget(_p_)
+
+31 runtime.gfget(_p_ *p) *g
+    // 从g空闲列表中获取
+    // 如果本地列表是空，则从全局列表中获取一批
+
+    retry:
+    if _p_.gFree.empty() &amp;&amp; (!sched.gFree.stack.empty() || !sched.gFree.noStack.empty()) {
+        lock(&amp;sched.gFree.lock)
+        //将一批空闲的Gs移到P
+        if _p_.gFree.n &lt; 32 {
+            //优先获取有栈的Gs，同时如果 sched.gFree.stack.head = gp.schedlink
+            gp := sched.gFree.stack.pop()
+            if gp == nil {
+                //
+                gp = sched.gFree.noStack.pop()    
+                if gp == nil {
+                    break
+                }
+            }
+            sched.gFree.n--
+            _p_.gFree.push(gp) //以入栈的方式将goroutine 连接起来
+            _p_.gFree.n++ 
+        }
+        unlock(&amp;sched.gFree.lock)
+        goto retry
+    }
+
+    gp := _p_.gFree.pop() //弹出最后进栈的goroutine
+    if gp == nil {
+        return nil
+    }
+
+    _p_.gFree.n--
+    if gp.stack.lo == 0 {
+        // stack 已经在 gfput 中回收，重新申请一个新的
+        systemstack(func() {
+            gp.stack = stackalloc(_fixedStack)    
+        })
+        gp.stackguard0 = gp.stack.lo + _StackGurad    
+    } else {
+        if raceenabled {
+            racemalloc(unsafe.Pointer(gp.stack.lo), gp.stack.hi-gp.stack.lo)
+        }
+        if msanenabled {
+            msanmalloc(unsafe.Pointer(gp.stack.lo), gp.stack.hi-gp.stack.lo)
+        }    
+    }
+
+    return gp
+
+32 runtime.stackalloc(n uint32) stack
+    // 申请b个自己的栈
+    // stackalloc必须运行在系统栈上面因为它用每个P的资源，并且不能缩放堆栈。
+    // Stackalloc必须运行在scheduler栈，因为我们从不尝试在stackalloc运行的代码期间
+    // 增加堆栈 </code></pre><h3 id="参考"><a href="#参考" class="headerlink" title="参考"></a>参考</h3><pre><code>https://docs.oracle.com/cd/E19205-01/820-1200/blaoy/index.html</code></pre>
       
     </div>
     
