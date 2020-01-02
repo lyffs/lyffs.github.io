@@ -82,11 +82,11 @@
 <meta name="description" content="Go program execute process简介本文从Golang的小程序反汇编得到汇编代码，从中分析Golang程序执行过程。  Golang 程序  &#96;     package main     import &amp;quot;fmt&amp;quot;      func main() {         ch1 := make(chan int)         go func() {">
 <meta property="og:type" content="article">
 <meta property="og:title" content="goexec">
-<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2019&#x2F;12&#x2F;31&#x2F;goexec&#x2F;index.html">
+<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2020&#x2F;01&#x2F;02&#x2F;goexec&#x2F;index.html">
 <meta property="og:site_name" content="Hexo">
 <meta property="og:description" content="Go program execute process简介本文从Golang的小程序反汇编得到汇编代码，从中分析Golang程序执行过程。  Golang 程序  &#96;     package main     import &amp;quot;fmt&amp;quot;      func main() {         ch1 := make(chan int)         go func() {">
 <meta property="og:locale" content="en">
-<meta property="og:updated_time" content="2019-12-31T15:44:20.891Z">
+<meta property="og:updated_time" content="2020-01-02T15:03:30.564Z">
 <meta name="twitter:card" content="summary">
 
 
@@ -117,7 +117,7 @@
 
 
 
-  <link rel="canonical" href="http://yoursite.com/2019/12/31/goexec/"/>
+  <link rel="canonical" href="http://yoursite.com/2020/01/02/goexec/"/>
 
 
 
@@ -230,7 +230,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2019/12/31/goexec/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2020/01/02/goexec/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="John Doe">
@@ -259,8 +259,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2019-12-31T23:44:20+08:00">
-                2019-12-31
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-01-02T23:03:30+08:00">
+                2020-01-02
               </time>
             
 
@@ -735,6 +735,30 @@ Golang 程序
         acquirep(_p_)
     }
 
+    // 释放空闲M列表。我们在某些地方做这个工作同时这可能释放我们可以使用的一个栈。
+    if sched.freem != nil {
+        lock(&amp;sched.lock)
+        for freem := sched.freem; freem != nil; {
+            if freem.freewait != 0 {
+                next := freem.freelink
+                freem.freelink = newList
+                newList = freem
+                freem = next
+                continue
+            }
+            stackfree(freem.g0.stack)
+            freem = freem.freelink
+        }
+        sched.freem = newList
+        unlock(&amp;sched.lock)
+    }
+
+    mp := new(m)
+    mp.mstartfn = fn
+    mcommoninit(mp)
+
+
+
 25 runtime.acquirep(_p_ *p)
     // 这部分的执行不允许写屏障
     // wirep是acquirep的第一步，它实际上是将当前M和_p_关联起来。
@@ -1160,6 +1184,8 @@ Golang 程序
     unused *specialfinalizer
 
 34 runtime (h *mheap) coalesce(s *mspan)
+    // 合并相邻mspan
+
     // merge 是一个帮助器用来将其他合并到s，删除heap元数据中对这些的引用，然后丢弃他们。这些mspan必须与s相邻
     merge := func(a, b, other *mspan) {
     // 调用者必须确保a.startAddr &lt; b.startAddr 和a或者b是s。a和b必须是相邻的。other是两者中不是s的一个。
@@ -1172,7 +1198,108 @@ Golang 程序
         }
     }
 
+    // 通过base和npages调整s，同时也是在heap 元数据中
+    s.npages += other.npages
+    s.needzero |= other.needzero
+    if a == s {
+        // s.base()+s.npages*pageSize-1是合并后mspan的尾地址
+        h.setSpan(s.base()+s.npages*pageSize-1, s)
+    } else {
+        s.startAddr = other.startAddr
+        h.setSpan(s.base(), s)
+    }
 
+    // 大小可能正在改变，所以treap需要删除相邻的对象，同时作为一个联合节点添加回去。
+    // 从mheap_.free treap找到mspan所属的treap节点，并移除。 
+    h.free.removeSpan(other)
+    // 设置该mspan的状态为 mSpanDead
+    other.state = mSpanDead
+    h.spanalloc.free(unsafe.Pointer(other))
+
+    // realign是一个帮助器用于收缩other和扩张s使得他们的边界处于同一个物理页边界上
+    realign := func(a, b, other *mspan) {
+        //
+        if pageSize &gt;= physPageSize {
+            return
+        }
+        h.free.removeSpan(other)
+    }
+
+35 runtime.stackfree(stk stack)
+    // go:systemstack
+    // stackfree释放stk上的n个字节stack申请。
+    // stackfree必须运行在系统栈上因为它用P的资源和必须不能扩张stack
+
+    // 获取当前goroutine
+    gp := getg()
+    v := unsafe.Pointer(stk.lo)
+    // stack的大小
+    n := stk.hi - stk.lo
+    if n&amp;(n-1) != 0 {
+        // 是否是2的幂
+        throw(&quot;&quot;)
+    }
+    if stk.lo+n &lt; stk.hi {
+        throw(&quot;&quot;)
+    }
+    fi stackDebug &gt;= 1 {
+        println(&quot;stackfree&quot;, v, n)
+        memclrNoHeapPointers(v, n)
+    }
+    if debug.efence != 0 || stackFromSystem != 0 {
+        if debug.efence != 0 || stackFaultOnFree != 0 {
+            sysFault(v, n)
+        } else {
+            sysFree(v, n, &amp;memstats.stacks_sys)
+        }
+        return
+    }
+    if msanenables {
+        msanfree(v, n)
+    }
+
+    if n &lt; _FixedStack&lt;&lt;_NumStackOrders &amp;&amp; n &lt; _StackCacheSize {
+        order := uint8(0)
+        n2 := n
+        for n2 &gt; _FixedStack {
+            order++
+            n2 &gt;&gt; 1
+        }
+        x := gclinkptr(v)
+        c := gp.m.mcache
+        if stackNoCache != 0 || c == nil || gp.m.preemptoff != &quot;&quot; {
+            lock(&amp;stackpoolmu)
+            // 该stack是在heap内申请
+            stackpoolfree(x, order)
+            unlock(&amp;stackpoolmu)
+        } else {
+            if c.stackcache[order].size &gt;= _StackCacheSize {
+                // 该stack是在heap内申请
+                stackcacherelease(c, order)
+            }
+            x.ptr().next = c.stackcache[order].list
+            c.stackcache[order].list = x
+            c.stackcache[order].size += n
+        }
+    } else {
+        // 根据地址uintptr(v)获取该地址所属的mspan:s
+        s := spanOfUnchecked(uintptr(v))
+        // 如果mspan状态不是mSpanManual，则抛出
+        if s.state != mSpanManual {
+            throw()
+        }
+        if gcphase == _GCoff {
+            // 如果我们正在sweeping，立即释放stack
+            osStackFree(s)
+            // 手动释放mspan:s
+            mheap_.freeManual(s, &amp;memstats.stacks_inuse)
+        } else {
+            log2npage := stacklog2(s.npages)
+            lock(&amp;stackLarge.lock)
+            stackLarge.free[log2npage].insert(s)
+            unlock(&amp;stackLarge.lock)
+        }    
+    }
 
 30 runtime.heapArena struct 
     // heapArena存储heap arena的数据单元。heapArenas储存在Go heap
@@ -1434,7 +1561,7 @@ https://me.csdn.net/u010853261    </code></pre>
 
     <footer id="footer" class="footer">
       <div class="footer-inner">
-        <div class="copyright">&copy; <span itemprop="copyrightYear">2019</span>
+        <div class="copyright">&copy; <span itemprop="copyrightYear">2020</span>
   <span class="with-love">
     <i class="fa fa-user"></i>
   </span>
