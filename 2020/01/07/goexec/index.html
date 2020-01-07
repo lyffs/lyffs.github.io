@@ -82,11 +82,11 @@
 <meta name="description" content="Go program execute process简介本文从Golang的小程序反汇编得到汇编代码，从中分析Golang程序执行过程。  Golang 程序  &#96;     package main     import &amp;quot;fmt&amp;quot;      func main() {         ch1 := make(chan int)         go func() {">
 <meta property="og:type" content="article">
 <meta property="og:title" content="goexec">
-<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2020&#x2F;01&#x2F;04&#x2F;goexec&#x2F;index.html">
+<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2020&#x2F;01&#x2F;07&#x2F;goexec&#x2F;index.html">
 <meta property="og:site_name" content="Hexo">
 <meta property="og:description" content="Go program execute process简介本文从Golang的小程序反汇编得到汇编代码，从中分析Golang程序执行过程。  Golang 程序  &#96;     package main     import &amp;quot;fmt&amp;quot;      func main() {         ch1 := make(chan int)         go func() {">
 <meta property="og:locale" content="en">
-<meta property="og:updated_time" content="2020-01-04T15:06:18.941Z">
+<meta property="og:updated_time" content="2020-01-07T15:04:25.726Z">
 <meta name="twitter:card" content="summary">
 
 
@@ -117,7 +117,7 @@
 
 
 
-  <link rel="canonical" href="http://yoursite.com/2020/01/04/goexec/"/>
+  <link rel="canonical" href="http://yoursite.com/2020/01/07/goexec/"/>
 
 
 
@@ -230,7 +230,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2020/01/04/goexec/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2020/01/07/goexec/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="John Doe">
@@ -259,8 +259,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-01-04T23:06:18+08:00">
-                2020-01-04
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-01-07T23:04:25+08:00">
+                2020-01-07
               </time>
             
 
@@ -788,6 +788,8 @@ Golang 程序
     }
 
     c.releaseAll()
+    stackache_clear(c)
+    atomic.Store(&amp;c.flushGen, mheap_.sweepgen)
 
 27 runtime (c *mcache)releaseAll
     for i := range c.alloc {
@@ -992,6 +994,56 @@ Golang 程序
         osStackFree(s)
         mheap_.freeManual(s, &amp;memstat.stacks_inuse)
     }
+
+
+32 runtime (m *mheap) freeManual(s *mspan, stat *uint64)
+    // freeManual 释放一个由allocManual申请的手工管理的span，stat必须等于在申请s时传给allocManual的stat。
+    // 这只能当gcphase=_GCoff被调用。
+    // freeManual必须在系统栈中被调用因为它需要heap锁。
+
+    s.needzero = 1
+    lock(&amp;h.lock)
+    *stat -= uint64(s.npages &lt;&lt; _PageShift)
+    memstat.heap_sys += uint64(s.npages &lt;&lt; _PageShift)
+    h.freeSpanLocked(s, false, true)
+    unlock(&amp;h.lock)
+
+33 runtime (h *mheap) freeSpanLocked(s *mspan, acctinuse, acctidle bool)
+    switch s.state {
+    case mSpanManual:
+        if s.allocCount != 0 {
+            throw(&quot;&quot;)
+        }
+    case mSpanInUse:
+        if s.allocCount != 0 || s.sweepgen != h.sweepgen {
+            throw(&quot;&quot;)
+        }
+        // mheap减去mspan page
+        h.pageInUse -= uint64(s.npages)
+
+        arena, pageIdx, pageMask := pageIndexOf(s.base())
+        arena.pageInuse[pageIdx] &amp;^= pageMask
+    default:
+        throw(&quot;&quot;)
+    }
+
+    if acctinuse {
+        memstat.heap_inuse -= uint64(s.npages &lt;&lt; _PageShift)
+    }
+    if acctidle {
+        memstat.heap_idle += uint64(s.npages &lt;&lt; _PageShift)
+    }
+    s.state = mSpanFree
+
+    h.coalesce(s)
+
+    h.free.insert(s)
+
+34 runtime pageIndexOf(p uintptr) (arena *heapArena, pageIdx uintptr pageMask uint8)
+    ai := arenaIndex(p)
+    arena = mheap_.arenas[ai.l1()][ai.l2()]
+    pageIdx = ((p / pageSize) / 8) % uintptr(len(arena.pageInUse))
+    pageMask = byte(1 &lt;&lt; ((p / pageSize) % 8))
 
 
 32 runtime.spanOfUnchecked(p uintptr) *mspan 
@@ -1246,6 +1298,42 @@ Golang 程序
 
     hpMiddle := s.hugePages()
 
+    // Coalesce with earlier, latesr spans
+    var hpBefore uintptr
+    // 获取s前个mpsan: before，检查before的状态
+    if before := spanOf(s.base()-1); before != nil &amp;&amp; before.state == mSpanFree {
+        // 如果s的回收状态==before的回收状态，则合并
+        if s.scavenged == before.scavenged {
+            hpBefore = before.hugePages()
+            merge(before, s, before)
+        } else {
+        // 重新调整(重新调整s和befefore的边界)
+            realign(before, s, before)
+        }    
+    }
+
+    // 现在检查下个span(地址更大)是否空闲和是否可以合并
+    var hpAfter uintptr
+    if after := spanOf(s.base()+s.npages*pageSize); after != nil &amp;&amp; after.state == mSpanFree {
+        // s.base+s.npages*pageSize 是属于下个mspan的
+        if s.scavenged == after.scavenged {
+            hpAfter = after.hugePages()
+            merge(s, after, after)
+        } else {
+            realign(s, after, after)
+        }
+    }
+
+    // 如果s还没有将page归还给os并且 hugePages数量更多
+    if !s.scavenged &amp;&amp; s.hugePages() &gt; hpBefore+hpMiddle+hpAfter {
+        // 如果s已经增长以致它可能包含更多的huge page相比它和它现在合并的邻近mspan，则标记整个地区作为huge-page-backable
+        // 另外，在我们打碎huge pages(比如linux)的系统上，huge pages可能不支持s，因为它可能由许多底层的VMA组成。主要问题是
+        // 它可能导致对由大页面支持的空闲内存数量的估计不足，从而无法确定清楚速率。
+
+        // 
+        sysHugePage(unsafe.Pointer(s.base(), s.npages*pageSize))
+    }
+
 
 
 35 runtime (s *mSpan) hugePages() uintptr 
@@ -1266,8 +1354,15 @@ Golang 程序
     }
     start := s.base()
     end := start + s.npages*PageSize
-
-
+    if physHugePageSize &gt; pageSize {
+        // start对齐physHugePageSize
+        start = (start + physHugePageSize -1) &amp;^ (physHugePageSize -1)
+        end &amp;^ = physHugePageSize -1
+    }
+    if start &lt; end {
+        return (end -start) &gt;&gt; physHugePageShift
+    }
+    return 0
 
 
 38 runtime.stackfree(stk stack)
