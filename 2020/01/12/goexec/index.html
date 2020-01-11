@@ -82,11 +82,11 @@
 <meta name="description" content="Go program execute process简介本文从Golang的小程序反汇编得到汇编代码，从中分析Golang程序执行过程。  Golang 程序  &#96;     package main     import &amp;quot;fmt&amp;quot;      func main() {         ch1 := make(chan int)         go func() {">
 <meta property="og:type" content="article">
 <meta property="og:title" content="goexec">
-<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2020&#x2F;01&#x2F;09&#x2F;goexec&#x2F;index.html">
+<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2020&#x2F;01&#x2F;12&#x2F;goexec&#x2F;index.html">
 <meta property="og:site_name" content="Hexo">
 <meta property="og:description" content="Go program execute process简介本文从Golang的小程序反汇编得到汇编代码，从中分析Golang程序执行过程。  Golang 程序  &#96;     package main     import &amp;quot;fmt&amp;quot;      func main() {         ch1 := make(chan int)         go func() {">
 <meta property="og:locale" content="en">
-<meta property="og:updated_time" content="2020-01-09T14:30:20.341Z">
+<meta property="og:updated_time" content="2020-01-11T16:07:23.480Z">
 <meta name="twitter:card" content="summary">
 
 
@@ -117,7 +117,7 @@
 
 
 
-  <link rel="canonical" href="http://yoursite.com/2020/01/09/goexec/"/>
+  <link rel="canonical" href="http://yoursite.com/2020/01/12/goexec/"/>
 
 
 
@@ -230,7 +230,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2020/01/09/goexec/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2020/01/12/goexec/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="John Doe">
@@ -259,8 +259,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-01-09T22:30:20+08:00">
-                2020-01-09
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-01-12T00:07:23+08:00">
+                2020-01-12
               </time>
             
 
@@ -1687,10 +1687,15 @@ Golang 程序
         }
 
 52 runtime (h *mheap) sysAlloc(n uintptr) (v unsafe.Pointer, size uintptr)
-        //
+        // sysAlloc申请最少n字节的heap arena空间。返回的指针总是heapArenaBytes-aligned对齐和
+        // 依靠h.arenas metadata。返回的大小总是heapAreanaBytes多倍。sysAlloc失败时返回nil。
+        // 这没有相应的释放函数
+
+        // sysAlloc返回处于Prepared状态的内存区域。该区域必须转换转换成Ready状态在使用之前。
+        // h必须上锁。
         n = round(n, heapAreanaBytes)        
 
-        // 首先，尝试预保留arena
+        // 首先，尝试arena预先判断空间是否足够，不足则通过mmap申请
         v = h.arena.alloc(n, heapAreanaBytes, &amp;memstats.heap_sys)
         if v != nil {
             size = n
@@ -1723,6 +1728,111 @@ Golang 程序
                 break
             }
             // 失败。丢弃这个hint和尝试下一个hint
+
+            if v != nil {
+                // 预释放
+                sysFree(v, n, nil)
+            }
+            // 指向下一个arenaHints
+            h.arenaHints = hint.next
+            h.arenaHintAlloc.free(unsafe.Pointer(hint))
+        }
+
+        if size == 0 {
+            if raceenabled {
+                // Race探测器猜测 heap地址范围[0x00c000000000，0x00e000000000]，但是我们
+                // 用完这个地区的hints。抛出错误
+                throw(&quot;&quot;)
+            }
+
+            // 所有的hints失败，所以我们获取内核分配给我们的的任何对齐地址
+            v, size = sysReserveAligned(nil, n, heapArenaBytes)
+            if v == nil {
+                return nil, 0
+            }
+
+            // 为扩展的区域创建新的hints
+            hint := (*arenaHint) (h.arenaHintAlloc.alloc())
+            hint.addr, hint.down = uintptr(v), true
+            hint.next, mheap_arenaHints = mheap_.arenaHints, hint
+            hint = (*arenaHint)(h.arenaHintAlloc.alloc())
+            hint.addr = uintptr(v) + size
+            hint.next, mheap_arenaHints = mheap_.arenaHints, hint
+        }
+
+        // 检查坏指针或者我们不能用的指针
+        {
+            var bad string
+            p := uintptr(v)
+            if p+size &lt; - {
+                throw()
+            } else if arenaIndex(p) &gt;= 1&lt;&lt;arenaBits {
+                throw()
+            } else if arenaIndex(p+size-1) &gt;= 1&lt;&lt;arenaBits {
+                throw()
+            }
+        }
+
+        // 如果v和heapArenaBytes没有对齐
+        if uintptr(v) &amp; (heapArenaBytes-1) != 0 {
+            throw()
+        }
+
+        // 将预保留转化为准备
+        sysMap(v, size, &amp;memstats.heap_sys)
+
+    mapped:
+        // 创建 arena metadata
+        // 设置每个&gt;=ri且&lt;ri+size-1
+        for ri := arenaIndex(uintptr(v)); ri &lt;= arenaIdex(uintptr(v)+size-1); ri++ {
+            l2 := h.arenas[ri.l1()]
+            if l2 == nil {
+                // 申请一个L2 arena map
+                l2 = (*[1 &lt;&lt; arenaL2Bits]*heapArena)(presistentalloc(unsafe.Sizeof(*l2), sys.PtrSize, nil))
+                if l2 == nil {
+                    throw(&quot;&quot;)
+                }
+                // 设置
+                atomic.StorepNoWB(unsafe.Pointer(&amp;h.arenas[ri.l1()]), unsafe.Pointer(l2))
+            }
+
+            if l2[ri.l2()] != nil {
+                throw(&quot;&quot;)
+            }
+
+            var r *heapArena
+            r = (*heapArena)(h.heapArenaAlloc.alloc(unsafe.Sizeof(*r)), sys.PtrSize, &amp;memstats.gc_sys))
+            if r == nil {
+                r = (*heapArena)(persistentalloc)(unsafe.Sizeof(*r), sys.PtrSize, &amp;memstats.gc_sys)
+                if r == nil {
+                    throw(&quot;&quot;)
+                }
+            }
+
+            // 添加arena到列表
+            if len(h.allArenas) == cap(h.allArenas) {
+                size := 2 * uintptr(cap(h.allarenas)) * sys.PtrSize
+                if size == 0 {
+                    sys = physPageSize
+                }
+
+                newArray := (*notInHeap)(persistentalloc)(size, sys.PtrSize, &amp;memstats.gc_sys)
+                if newArray == nil {
+                    throw(&quot;&quot;)
+                }
+                oldSlice := h.allArenas
+                *(*notInHeapSlice)(unsafe.Pointer(&amp;h.allArenas)) == notInHeapSlice{newArray, len(h.allArenas), int(sys/sys.PtrSize)}
+                copy(h.allArenas, oldSlice)
+            }
+            h.allArenas = h.allArenas[:len(h.allArenas)+1]    
+            h.allArenas[len(h.allArenas)-1] = ri
+
+            // 原子性存储防止来自新堆的arena的对象变得有效在锁释放之前(这不可能发生，但是这是一个小缺点)
+            atomic.StorepNoWB(unsafe.Pointer(&amp;12[ri.l2()]), unsafe.Pointer(r))
+        }
+
+        if raceenables {
+            racemapshadow(v, size)
         }
 
 53 runtime (l *linearAlloc) alloc(size, align uintptr, sysStat *uint64) unsaft.Pointer
@@ -1747,6 +1857,135 @@ Golang 程序
         if err != 0 {
             return nil
         }
+        return p
+
+55 runtime sysReserveAligned(v unsafe.Pointer, size, align uintptr) (unsafe.Pointer, uintptr)
+        // sysReserverAligned 类似sysReserve，但是返回的指针是对齐 align字节的。他可能预申请n或者是
+        // n+align字节，所以它返回预申请的大小
+
+        // 在本函数调用中align可能相当大，我们不可能随机获得它，所以我们要求一个更大的地区和移除我们不需要的部分
+
+        retries := 0
+    retry:
+        p := uintptr(sysReserve(v, size+align))
+        switch {
+            case p == 0:
+                return nil, 0
+            case p&amp;(align-1) == 0
+                // 
+                return unsafe.Pointer(p), size+align
+            case GOOS == &quot;windows&quot;
+                //
+                sysFree(unsafe.Pointer(p), size+align, nil)
+                p = round(p, align)
+                p2 := sysReServe(unsafe.Pointer(p), size)
+                if p != uintptr(p2) {
+                    sysFree(p2, size, nil)
+                    if retries++; retries == 100 {
+                        throw(&quot;&quot;)
+                    }
+                    goto retry
+                }
+                // 成功
+                return p2, size
+            default:
+                // p对齐align
+                pAligned := round(p, align)
+                // 释放多余的部分
+                sysFree(unsafe.Pointer(p), pAlign-p, nil)
+                end := pAligned+size
+                endLen := (p+size+align) - end
+                if endLen &gt; 0 {
+                    sysFree(unsafe.Pointer(end), endLen, nil)
+                }
+                return unsafe.Pointer(pAligned), size
+        }
+
+56 runtime persistentalloc(size, align uintptr, sysStat *uint64) unsafe.Pointer
+        // 可以申请小块的sysAlloc修饰器
+        // 没有相关的释放操作
+        // 针对如 函数/类型/debug相关的持续数据对象
+        // 如果对齐是0，使用默认对齐
+        // 返回的内存内容是0
+
+        var p *notInHeap
+        systemstack(func() {
+            p = persistentalloc1(size, align, sysStat)
+        })
+        return unsafe.Pointer(p)
+
+57 runtime presistentalloc1(size, align uintptr, sysStat *uint64) *notInHeap
+        //go:systemstack
+        // 必须在系统栈运行因为stack增长会调用它
+        const (
+            maxBlock = 64 &lt;&lt; 10
+        )
+
+        if size == 0 {
+            throw(&quot;&quot;)
+        }
+
+        if align != 0 {
+            // 不是2的幂
+            if align&amp;(align-1) != 0 {
+                throw(&quot;&quot;)
+            }    
+            // align字段太大
+            if align &gt; _PageSize {
+                throw(&quot;&quot;)
+            }
+        } else {
+            align = 8
+        }
+
+        if size &gt;= maxBlock {
+            return (*notInHeap)(sysAlloc(size, sysStat))
+        }
+
+        mp := acquirem()
+        var persistent *persistentAlloc
+        if mp != nil &amp;&amp; mp.p != 0 {
+            // 获取每个p的persistentAlloc，避免锁
+            persistent = &amp;mp.p.ptr().palloc
+        } else {
+            lock(&amp;globalAlloc.mutex)
+            persistent = &amp;globalAlloc.persistentAlloc
+        }
+
+        // 对齐align
+        persistent.off = round(persistent.off, align)
+        // persistentChunkSize = 256KB
+        if persistent.off+size &gt; persistentChunkSize || persistent.base == nil {
+            persistent.bash = (*notInHeap)(sysAlloc(persistentChunkSize, &amp;memstats.other_sys))
+            if persistent.bash == nil {
+                if persistent == &amp;globalAlloc.persistentAlloc {
+                    unlock(&amp;globalAlloc.mutex)
+                }
+                throw(&quot;&quot;)
+            }
+
+            // 添加新的chunk到persistentChunks列表
+            for {
+                chunks := uintptr(unsafe.Pointer(persistentChunks))
+                *(*uintptr)(unsafe.Pointer(persistent.bash)) == chunks
+                if atomic.Casuintptr((*uintptr)(unsafe.Pointer(&amp;persistentChunks)), chunks, uintptr(unsafe.Pointer(persistent.base)))
+                    break
+                }
+            }    
+            persistent.off = round(sys.PtrSize, align)
+        }
+        p := persistent.base.add(persistent.off)
+        persistent.off += size
+        releasem(mp)
+        if persistent == &amp;globalAlloc.persistentAlloc {
+            unlock(&amp;global.mutex)
+        }
+
+        if sysStat != &amp;memstats.other_sys {
+            mSysStatInc(sysStat, size)
+            mSysStatDec(&amp;memstat.other_sys, size)
+        }
+
         return p
 
 43 runtime.newproc1(fn *funcval, argp *uint8, narg int32, callergp *g, callerpc uintptr)
