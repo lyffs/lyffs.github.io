@@ -82,11 +82,11 @@
 <meta name="description" content="Go program execute process简介本文从Golang的小程序反汇编得到汇编代码，从中分析Golang程序执行过程。  Golang 程序  &#96;     package main     import &amp;quot;fmt&amp;quot;      func main() {         ch1 := make(chan int)         go func() {">
 <meta property="og:type" content="article">
 <meta property="og:title" content="goexec">
-<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2020&#x2F;01&#x2F;13&#x2F;goexec&#x2F;index.html">
+<meta property="og:url" content="http:&#x2F;&#x2F;yoursite.com&#x2F;2020&#x2F;01&#x2F;14&#x2F;goexec&#x2F;index.html">
 <meta property="og:site_name" content="Hexo">
 <meta property="og:description" content="Go program execute process简介本文从Golang的小程序反汇编得到汇编代码，从中分析Golang程序执行过程。  Golang 程序  &#96;     package main     import &amp;quot;fmt&amp;quot;      func main() {         ch1 := make(chan int)         go func() {">
 <meta property="og:locale" content="en">
-<meta property="og:updated_time" content="2020-01-13T15:17:24.404Z">
+<meta property="og:updated_time" content="2020-01-14T15:20:38.987Z">
 <meta name="twitter:card" content="summary">
 
 
@@ -117,7 +117,7 @@
 
 
 
-  <link rel="canonical" href="http://yoursite.com/2020/01/13/goexec/"/>
+  <link rel="canonical" href="http://yoursite.com/2020/01/14/goexec/"/>
 
 
 
@@ -230,7 +230,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2020/01/13/goexec/">
+    <link itemprop="mainEntityOfPage" href="http://yoursite.com/2020/01/14/goexec/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
       <meta itemprop="name" content="John Doe">
@@ -259,8 +259,8 @@
               
                 <span class="post-meta-item-text">Posted on</span>
               
-              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-01-13T23:17:24+08:00">
-                2020-01-13
+              <time title="Post created" itemprop="dateCreated datePublished" datetime="2020-01-14T23:20:38+08:00">
+                2020-01-14
               </time>
             
 
@@ -1589,7 +1589,13 @@ Golang 程序
             x = stackpoolalloc(order)
             unlock(&amp;stackpoolmu)
         } else {
-            x = c.ta
+            x = c.stackcache[order].list
+            if x.ptr() == nil {
+                stackcacherefill(c, order)
+                x = c.stackcache[order].list
+            }
+            c.stackcache[order].list = x.ptr().next
+            c.stackcache[order].size -= uintptr(n)
         }
     }
 
@@ -1625,15 +1631,34 @@ Golang 程序
         if s.manualFreeList.ptr() != nil {
             throw(&quot;&quot;)
         }
+
+        // osStackAlloc执行操作系统指定的初始化工作在s作为stack 内存使用之前
         osStackAlloc(s)
+        // 元素类型大小为 _FixedStack&lt;&lt;order
         s.elemsize = _FixedStack &lt;&lt; order
+
         for i := uintptr(0); i &lt; _StackCacheSize; i += s.elemsize {
+            // 构建空闲链表
             x := gclinkptr(s.base()+i)
             x.ptr().next = s.manualFreeList
             s.manualFreeList = x
         } 
+        // 插入到相应的mSpanList
         list.insert(s)
     }
+
+    x := s.manualFreeList
+    if x.ptr() == nil {
+        throw(&quot;&quot;)
+    }
+
+    s.manualFreeList = x.ptr().next
+    s.allocCount++
+    if s.manualFreeList.ptr() == nil {
+        // mspan中的所有stacks已被申请
+        list.remove(s)
+    }
+    return x
 
 49 runtime (h *mheap) allocManual(npage uintptr, stat *uint64) *mspan
         // allocManual 申请一个手动管理的由npage页组成的span，如果申请失败allocManual返回nil
@@ -1642,6 +1667,7 @@ Golang 程序
         // 如果span.needzero设置，返回的span中的memory可能不是零。
         // allocManual 必须在系统栈中调用因此它需要heap锁。
         lock(&amp;h.lock) 
+        // 从mheap_.free堆树申请
         s := h.allocSpanLocked(npage, stat) </code></pre><p>i            if s != nil {<br>                s.state = mSpanManual<br>                s.manualFreeList = 0<br>                s.allocCount = 0<br>                s.spanclass = 0<br>                s.nelems = 0<br>                s.limit = s.base() + s.npages&lt;&lt;_PageShift<br>                // 手动管理的内存不计入heap_sys<br>                memstats.heap_sys -= uint64(s.npages &lt;&lt; _PageShift)<br>            }</p>
 <pre><code>        unlock(&amp;h.lock)
         return s
@@ -1655,9 +1681,11 @@ Golang 程序
             goto HaveSpan
         }
 
+        // 在mheap.free列表中添加npages的mspan
         if !h.grow(npage) {
             return nil
         }
+        // 再次寻找
         t = h.free.find(npage)
         if t.valid() {
             goto HaveSpan
@@ -1665,6 +1693,66 @@ Golang 程序
         throw(&quot;grew heap, but no adequate free span found&quot;)
 
     HaveSpan:
+        // 获取mspan
+        s := t.span()
+        // 如果mspan的状态不为mspanFree，则throw
+        if s.state != mSpanFree {
+            // 用于申请的候选mspan不是空闲状态
+            throw(&quot;&quot;)
+        }
+
+        // 首先，从s中减去已经释放给回操作系统的内存。如果需要我们将会加回剩下的
+        // memstats.heap_released减去mspan释放的内存？
+        memstats.heap_released -= uint64(s.released())    
+
+        if s.npages == npage {
+            // mheap_.free 剔除 mspan:t
+            h.free.erase(t)
+        } else if s.npages &gt;= npage {
+            //
+            n := (*mspan)(h.spanalloc.alloc())
+            h.free.mutate(t, func(s *mspan) {
+                n.init(s.base(), npage)
+                s.npages -= npage
+                s.startAddr = s.base()+npage*pageSize
+                h.setSpan(s.base()-1, n)
+                h.setSpan(s.base, s)
+                h.setSpan(n.base, n)
+                n.needzero = s.needzero
+                n.scavenged = s.scavenged
+                if s.scavenged {
+                    start, end := s.physPageBounds()
+                    if start &lt; end {
+                        memstats.heap_released += uint64(end-start)
+                    } else {
+                        s.scavenged = false
+                    }
+                }
+            })
+            s = n
+        } else {
+            // too small
+            throw()
+        }
+
+        if s.scavenged {
+            // sysUsed 在span中有效的所有页。注意我们不需要heap_released减去相应量因为我们之前就已经做了。
+            sysUsed(unsafe.Pointer(s.base()), s.npages&lt;&lt;_PageShift)
+            s.scavenged = false
+        }
+
+        // 范围设置s.base
+        h.setSpans(s.base(), npage, s)
+
+        *stat += uint64(npage &lt;&lt; _PageShift)
+        memstats.heap_idle -= uint64(npage&lt;&lt;_PageShift)
+
+        if s.inList() {
+            // in list
+            throw(&quot;&quot;)
+        }
+
+        return s
 
 51 runtime (h *mheap) grow(npage uintptr) bool
         // 尝试添加最少npage页内存到heap，返回是否成功
@@ -2130,6 +2218,29 @@ Golang 程序
             n.state = s.state
         })
         return n
+
+63 runtime (s *mspan) released() uintptr
+        // 释放返回span中返回给OS的字节数
+        if !s.scavenged {
+            return 0
+        }
+        // 获取对齐物理页的mspan的start地址和end地址
+        start, end := s.physPageBounds()
+        return end - start
+
+64 runtime stackcacherefill(c *mcache, order uint8)
+        //go:systemstack
+
+        // stackcacherefill/stackcacherelease实现一个全局栈帧池。这个全局池要求用来
+        // 阻止per-thread caches无限制的增长。
+
+        if stackDebug &gt;= 1 {
+            print(&quot;&quot;)
+        }
+
+        //
+        var list gclinkptr
+        var size uintptr
 
 43 runtime.newproc1(fn *funcval, argp *uint8, narg int32, callergp *g, callerpc uintptr)
     // 创建一个运行fn从argp开始拥有narg字节参数的协程。callerpc是创建它的go语句地址。
